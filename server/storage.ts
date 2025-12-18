@@ -1,6 +1,7 @@
 import {
   users,
   customers,
+  customerProfiles,
   products,
   segments,
   campaigns,
@@ -10,6 +11,8 @@ import {
   type UpsertUser,
   type Customer,
   type InsertCustomer,
+  type CustomerProfile,
+  type InsertCustomerProfile,
   type Product,
   type InsertProduct,
   type Segment,
@@ -102,6 +105,19 @@ export interface IStorage {
     vehicleCountMin?: number;
     vehicleAgeMax?: number;
   }): Promise<{ customers: Customer[]; total: number; page: number; totalPages: number }>;
+  
+  // Customer Profiles
+  getCustomerProfilesPaginated(filters: {
+    page: number;
+    limit: number;
+    search?: string;
+    city?: string;
+    customerType?: string;
+  }): Promise<{ profiles: CustomerProfile[]; total: number; page: number; totalPages: number }>;
+  getCustomerProfile(id: string): Promise<CustomerProfile | undefined>;
+  getCustomerProfileByHesapKodu(hesapKodu: string): Promise<CustomerProfile | undefined>;
+  getCustomerPolicies(hesapKodu: string): Promise<Customer[]>;
+  syncCustomerProfiles(): Promise<{ created: number; updated: number }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -659,6 +675,178 @@ export class DatabaseStorage implements IStorage {
       page: filters.page,
       totalPages: Math.ceil(total / filters.limit),
     };
+  }
+  
+  // Customer Profile Methods
+  async getCustomerProfilesPaginated(filters: {
+    page: number;
+    limit: number;
+    search?: string;
+    city?: string;
+    customerType?: string;
+  }): Promise<{ profiles: CustomerProfile[]; total: number; page: number; totalPages: number }> {
+    const conditions = [];
+    
+    if (filters.search) {
+      conditions.push(
+        or(
+          ilike(customerProfiles.musteriIsmi, `%${filters.search}%`),
+          ilike(customerProfiles.hesapKodu, `%${filters.search}%`),
+          ilike(customerProfiles.tcKimlikNo, `%${filters.search}%`),
+          ilike(customerProfiles.vergiKimlikNo, `%${filters.search}%`),
+          ilike(customerProfiles.ePosta, `%${filters.search}%`),
+          ilike(customerProfiles.gsmNo, `%${filters.search}%`)
+        )
+      );
+    }
+    
+    if (filters.city) {
+      conditions.push(ilike(customerProfiles.sehir, `%${filters.city}%`));
+    }
+    
+    if (filters.customerType) {
+      conditions.push(ilike(customerProfiles.musteriTipi, `%${filters.customerType}%`));
+    }
+    
+    const offset = (filters.page - 1) * filters.limit;
+    
+    const countResult = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(customerProfiles)
+      .where(conditions.length > 0 ? and(...conditions) : undefined);
+    
+    const total = Number(countResult[0]?.count || 0);
+    
+    const data = await db
+      .select()
+      .from(customerProfiles)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(customerProfiles.musteriIsmi)
+      .limit(filters.limit)
+      .offset(offset);
+    
+    return {
+      profiles: data,
+      total,
+      page: filters.page,
+      totalPages: Math.ceil(total / filters.limit),
+    };
+  }
+  
+  async getCustomerProfile(id: string): Promise<CustomerProfile | undefined> {
+    const [profile] = await db.select().from(customerProfiles).where(eq(customerProfiles.id, id));
+    return profile;
+  }
+  
+  async getCustomerProfileByHesapKodu(hesapKodu: string): Promise<CustomerProfile | undefined> {
+    const [profile] = await db.select().from(customerProfiles).where(eq(customerProfiles.hesapKodu, hesapKodu));
+    return profile;
+  }
+  
+  async getCustomerPolicies(hesapKodu: string): Promise<Customer[]> {
+    return await db
+      .select()
+      .from(customers)
+      .where(eq(customers.hesapKodu, hesapKodu))
+      .orderBy(customers.bitisTarihi);
+  }
+  
+  async syncCustomerProfiles(): Promise<{ created: number; updated: number }> {
+    // Get unique customers by hesap_kodu with aggregated data
+    const aggregatedData = await db.execute(sql`
+      WITH customer_agg AS (
+        SELECT 
+          hesap_kodu,
+          MAX(musteri_ismi) as musteri_ismi,
+          MAX(musteri_tipi) as musteri_tipi,
+          MAX(tc_kimlik_no) as tc_kimlik_no,
+          MAX(vergi_kimlik_no) as vergi_kimlik_no,
+          MAX(telefon_1) as telefon_1,
+          MAX(telefon_2) as telefon_2,
+          MAX(gsm_no) as gsm_no,
+          MAX(e_posta) as e_posta,
+          MAX(faks_no) as faks_no,
+          MAX(sehir) as sehir,
+          MAX(semt) as semt,
+          MAX(ilce) as ilce,
+          MAX(adres_1) as adres_1,
+          MAX(adres_2) as adres_2,
+          MAX(dogum_tarihi) as dogum_tarihi,
+          MAX(cinsiyet) as cinsiyet,
+          MAX(meslek_grubu) as meslek_grubu,
+          MAX(referans_grubu) as referans_grubu,
+          MAX(musteri_karti_tipi) as musteri_karti_tipi,
+          MAX(alternatif_hesap_kodu) as alternatif_hesap_kodu,
+          MAX(hesap_temsilci_adi) as hesap_temsilci_adi,
+          MAX(sube_adi) as sube_adi,
+          MAX(izinli_pazarlama) as izinli_pazarlama,
+          MAX(kvkk) as kvkk,
+          COUNT(*) as toplam_police,
+          COUNT(*) FILTER (WHERE bitis_tarihi::date >= CURRENT_DATE) as aktif_police,
+          COALESCE(SUM(CASE WHEN brut::numeric > 0 THEN brut::numeric ELSE 0 END), 0) as toplam_brut_prim,
+          COALESCE(SUM(CASE WHEN net::numeric > 0 THEN net::numeric ELSE 0 END), 0) as toplam_net_prim,
+          STRING_AGG(DISTINCT ana_brans, ', ') as sahip_olunan_urunler,
+          COUNT(DISTINCT arac_plakasi) FILTER (WHERE arac_plakasi IS NOT NULL AND arac_plakasi != '') as arac_sayisi
+        FROM customers
+        WHERE hesap_kodu IS NOT NULL AND hesap_kodu != ''
+        GROUP BY hesap_kodu
+      )
+      SELECT * FROM customer_agg
+    `);
+    
+    let created = 0;
+    let updated = 0;
+    
+    for (const row of aggregatedData.rows as any[]) {
+      const existingProfile = await this.getCustomerProfileByHesapKodu(row.hesap_kodu);
+      
+      const profileData: InsertCustomerProfile = {
+        hesapKodu: row.hesap_kodu,
+        musteriIsmi: row.musteri_ismi,
+        musteriTipi: row.musteri_tipi,
+        tcKimlikNo: row.tc_kimlik_no,
+        vergiKimlikNo: row.vergi_kimlik_no,
+        telefon1: row.telefon_1,
+        telefon2: row.telefon_2,
+        gsmNo: row.gsm_no,
+        ePosta: row.e_posta,
+        faksNo: row.faks_no,
+        sehir: row.sehir,
+        semt: row.semt,
+        ilce: row.ilce,
+        adres1: row.adres_1,
+        adres2: row.adres_2,
+        dogumTarihi: row.dogum_tarihi,
+        cinsiyet: row.cinsiyet,
+        meslekGrubu: row.meslek_grubu,
+        referansGrubu: row.referans_grubu,
+        musteriKartiTipi: row.musteri_karti_tipi,
+        alternatifHesapKodu: row.alternatif_hesap_kodu,
+        hesapTemsilciAdi: row.hesap_temsilci_adi,
+        subeAdi: row.sube_adi,
+        izinliPazarlama: row.izinli_pazarlama,
+        kvkk: row.kvkk,
+        toplamPolice: parseInt(row.toplam_police) || 0,
+        aktifPolice: parseInt(row.aktif_police) || 0,
+        toplamBrutPrim: row.toplam_brut_prim?.toString() || "0",
+        toplamNetPrim: row.toplam_net_prim?.toString() || "0",
+        sahipOlunanUrunler: row.sahip_olunan_urunler,
+        aracSayisi: parseInt(row.arac_sayisi) || 0,
+      };
+      
+      if (existingProfile) {
+        await db
+          .update(customerProfiles)
+          .set({ ...profileData, updatedAt: new Date() })
+          .where(eq(customerProfiles.id, existingProfile.id));
+        updated++;
+      } else {
+        await db.insert(customerProfiles).values(profileData);
+        created++;
+      }
+    }
+    
+    return { created, updated };
   }
 }
 

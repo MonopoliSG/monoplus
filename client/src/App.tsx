@@ -18,6 +18,8 @@ import Segments from "@/pages/Segments";
 import Import from "@/pages/Import";
 import AIInsights from "@/pages/AIInsights";
 import Campaigns from "@/pages/Campaigns";
+import CustomerProfiles from "@/pages/CustomerProfiles";
+import CustomerProfileDetail from "@/pages/CustomerProfileDetail";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -39,6 +41,8 @@ function Router() {
       <Route path="/" component={Dashboard} />
       <Route path="/customers" component={Customers} />
       <Route path="/customers/:id" component={CustomerDetail} />
+      <Route path="/customer-profiles" component={CustomerProfiles} />
+      <Route path="/customer-profiles/:id" component={CustomerProfileDetail} />
       <Route path="/products" component={Products} />
       <Route path="/segments" component={Segments} />
       <Route path="/import" component={Import} />

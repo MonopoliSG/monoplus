@@ -246,6 +246,74 @@ export const insertCustomerSchema = createInsertSchema(customers).omit({
 export type InsertCustomer = z.infer<typeof insertCustomerSchema>;
 export type Customer = typeof customers.$inferSelect;
 
+// Customer Profiles table - Unified view of customers with aggregated data
+export const customerProfiles = pgTable("customer_profiles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Unique identifier - uses hesapKodu as primary business key
+  hesapKodu: varchar("hesap_kodu").unique(),
+  
+  // Customer identification
+  tcKimlikNo: varchar("tc_kimlik_no"),
+  vergiKimlikNo: varchar("vergi_kimlik_no"),
+  
+  // Customer info
+  musteriIsmi: varchar("musteri_ismi"),
+  musteriTipi: varchar("musteri_tipi"), // Bireysel / Kurumsal
+  
+  // Contact information (consolidated from latest policy)
+  telefon1: varchar("telefon_1"),
+  telefon2: varchar("telefon_2"),
+  gsmNo: varchar("gsm_no"),
+  ePosta: varchar("e_posta"),
+  faksNo: varchar("faks_no"),
+  
+  // Address
+  sehir: varchar("sehir"),
+  semt: varchar("semt"),
+  ilce: varchar("ilce"),
+  adres1: text("adres_1"),
+  adres2: text("adres_2"),
+  
+  // Personal info
+  dogumTarihi: date("dogum_tarihi"),
+  cinsiyet: varchar("cinsiyet"),
+  meslekGrubu: varchar("meslek_grubu"),
+  
+  // Categorization
+  referansGrubu: varchar("referans_grubu"),
+  musteriKartiTipi: varchar("musteri_karti_tipi"),
+  alternatifHesapKodu: varchar("alternatif_hesap_kodu"),
+  
+  // Representative
+  hesapTemsilciAdi: varchar("hesap_temsilci_adi"),
+  subeAdi: varchar("sube_adi"),
+  
+  // KVKK / Pazarlama
+  izinliPazarlama: varchar("izinli_pazarlama"),
+  kvkk: varchar("kvkk"),
+  
+  // Aggregated metrics (computed from policies)
+  toplamPolice: integer("toplam_police").default(0),
+  aktifPolice: integer("aktif_police").default(0),
+  toplamBrutPrim: decimal("toplam_brut_prim", { precision: 15, scale: 2 }).default("0"),
+  toplamNetPrim: decimal("toplam_net_prim", { precision: 15, scale: 2 }).default("0"),
+  sahipOlunanUrunler: text("sahip_olunan_urunler"), // Comma separated list of branch names
+  aracSayisi: integer("arac_sayisi").default(0),
+  
+  // System fields
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertCustomerProfileSchema = createInsertSchema(customerProfiles).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertCustomerProfile = z.infer<typeof insertCustomerProfileSchema>;
+export type CustomerProfile = typeof customerProfiles.$inferSelect;
+
 // Insurance Products table
 export const products = pgTable("products", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

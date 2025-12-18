@@ -1093,6 +1093,71 @@ Sadece JSON objesi döndür, başka metin ekleme.`;
     }
   });
 
+  // Customer Profiles API
+  app.get("/api/customer-profiles", isAuthenticated, async (req, res) => {
+    try {
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 25;
+      const search = req.query.search as string;
+      const city = req.query.city as string;
+      const customerType = req.query.customerType as string;
+      
+      const result = await storage.getCustomerProfilesPaginated({
+        page,
+        limit,
+        search,
+        city,
+        customerType,
+      });
+      
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching customer profiles:", error);
+      res.status(500).json({ message: "Müşteri profilleri alınamadı" });
+    }
+  });
+
+  app.get("/api/customer-profiles/:id", isAuthenticated, async (req, res) => {
+    try {
+      const profile = await storage.getCustomerProfile(req.params.id);
+      if (!profile) {
+        return res.status(404).json({ message: "Müşteri profili bulunamadı" });
+      }
+      res.json(profile);
+    } catch (error) {
+      console.error("Error fetching customer profile:", error);
+      res.status(500).json({ message: "Müşteri profili alınamadı" });
+    }
+  });
+
+  app.get("/api/customer-profiles/:id/policies", isAuthenticated, async (req, res) => {
+    try {
+      const profile = await storage.getCustomerProfile(req.params.id);
+      if (!profile || !profile.hesapKodu) {
+        return res.status(404).json({ message: "Müşteri profili bulunamadı" });
+      }
+      const policies = await storage.getCustomerPolicies(profile.hesapKodu);
+      res.json(policies);
+    } catch (error) {
+      console.error("Error fetching customer policies:", error);
+      res.status(500).json({ message: "Müşteri poliçeleri alınamadı" });
+    }
+  });
+
+  app.post("/api/customer-profiles/sync", isAuthenticated, async (req, res) => {
+    try {
+      const result = await storage.syncCustomerProfiles();
+      res.json({ 
+        success: true, 
+        message: `${result.created} yeni profil oluşturuldu, ${result.updated} profil güncellendi`,
+        ...result 
+      });
+    } catch (error) {
+      console.error("Error syncing customer profiles:", error);
+      res.status(500).json({ message: "Müşteri profilleri senkronize edilemedi" });
+    }
+  });
+
   return httpServer;
 }
 

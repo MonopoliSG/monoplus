@@ -2,6 +2,7 @@ import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard,
   Users,
+  UserCircle,
   Package,
   PieChart,
   Upload,
@@ -27,7 +28,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 const menuItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Müşteriler", url: "/customers", icon: Users },
+  { title: "Müşteri Profilleri", url: "/customer-profiles", icon: UserCircle },
+  { title: "Poliçeler", url: "/customers", icon: Users },
   { title: "Ürünler", url: "/products", icon: Package },
   { title: "Segmentler", url: "/segments", icon: PieChart },
   { title: "Kampanyalar", url: "/campaigns", icon: Target },
