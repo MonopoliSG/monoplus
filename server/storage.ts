@@ -70,6 +70,7 @@ export interface IStorage {
     product?: string;
     city?: string;
   }): Promise<AiCustomerPrediction[]>;
+  getCustomerPredictionsByCustomerId(customerId: string): Promise<AiCustomerPrediction[]>;
   createCustomerPredictions(predictions: InsertAiCustomerPrediction[]): Promise<AiCustomerPrediction[]>;
   deleteCustomerPredictionsByType(analysisType: string): Promise<void>;
 }
@@ -318,6 +319,14 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(aiCustomerPredictions)
       .where(and(...conditions))
+      .orderBy(sql`${aiCustomerPredictions.probability} DESC`);
+  }
+
+  async getCustomerPredictionsByCustomerId(customerId: string): Promise<AiCustomerPrediction[]> {
+    return await db
+      .select()
+      .from(aiCustomerPredictions)
+      .where(eq(aiCustomerPredictions.customerId, customerId))
       .orderBy(sql`${aiCustomerPredictions.probability} DESC`);
   }
 

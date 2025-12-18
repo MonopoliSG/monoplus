@@ -571,6 +571,18 @@ Sadece JSON array döndür.`;
     }
   });
 
+  // Get predictions for a specific customer
+  app.get("/api/ai/predictions/customer/:customerId", isAuthenticated, async (req, res) => {
+    try {
+      const { customerId } = req.params;
+      const predictions = await storage.getCustomerPredictionsByCustomerId(customerId);
+      res.json(predictions);
+    } catch (error) {
+      console.error("Error getting customer predictions:", error);
+      res.status(500).json({ message: "Failed to get customer predictions" });
+    }
+  });
+
   // Get customer predictions with filters
   app.get("/api/ai/predictions", isAuthenticated, async (req, res) => {
     try {
@@ -831,7 +843,7 @@ Sadece JSON array döndür.`;
 }
 
 function getCustomerPredictionPrompt(type: string, customers: any[]): string {
-  const customerData = customers.slice(0, 50).map((c) => ({
+  const customerData = customers.slice(0, 100).map((c) => ({
     id: c.id,
     name: c.musteriIsmi,
     product: c.anaBrans,
@@ -862,6 +874,7 @@ Kurallar:
 - probability 0-100 arası olasılık yüzdesi olmalı
 - En yüksek riskli müşterilerden başla
 - reason alanına müşterinin neden iptal edebileceğini açıkla
+- EN AZ 50 müşteri için tahmin yap, mümkünse tüm müşteriler için
 - Sadece JSON array döndür, başka metin ekleme`;
   }
 
@@ -889,6 +902,7 @@ Kurallar:
 - suggestedProduct olarak Kasko, Trafik, Sağlık, Konut, DASK, Ferdi Kaza, Seyahat gibi ürünler öner
 - En yüksek satış potansiyeli olan müşterilerden başla
 - reason alanına satış argümanını açıkla
+- EN AZ 50 müşteri için öneri yap, mümkünse tüm müşteriler için
 - Sadece JSON array döndür, başka metin ekleme`;
   }
 

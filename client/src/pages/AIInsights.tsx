@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Sparkles, RefreshCw, TrendingUp, AlertTriangle, ShoppingCart, FileSpreadsheet, Users, ExternalLink, Search, Filter } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -547,10 +548,17 @@ function PredictionTable({
                 <TableCell className="text-center">
                   {getProbabilityBadge(prediction.probability)}
                 </TableCell>
-                <TableCell className="max-w-[300px]">
-                  <span className="text-sm text-muted-foreground line-clamp-2">
-                    {prediction.reason || "-"}
-                  </span>
+                <TableCell className="max-w-[400px]">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="text-sm text-muted-foreground line-clamp-3 cursor-help block">
+                        {prediction.reason || "-"}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-[500px]">
+                      <p className="text-sm whitespace-pre-wrap">{prediction.reason}</p>
+                    </TooltipContent>
+                  </Tooltip>
                 </TableCell>
                 <TableCell>
                   <Link href={`/customers/${prediction.customerId}`}>
