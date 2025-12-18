@@ -992,9 +992,9 @@ function PredictionFilters({
               disabled={predictions.length === 0}
               data-testid="button-view-customers"
             >
-              <Link href={`/customers?aiPredictionType=${analysisType}`}>
+              <Link href={`/customer-profiles`}>
                 <Users className="h-4 w-4 mr-2" />
-                Müşterileri Gör ({predictions.length})
+                Profilleri Gör ({predictions.length})
               </Link>
             </Button>
             <Button
@@ -1160,10 +1160,10 @@ function PredictionTable({
                   </Tooltip>
                 </TableCell>
                 <TableCell>
-                  <Link href={`/customers/${prediction.customerId}`}>
+                  <Link href={`/customer-profiles/${prediction.profileId || prediction.customerId}`}>
                     <Button variant="ghost" size="sm" data-testid={`button-view-${prediction.id}`}>
                       <ExternalLink className="h-4 w-4 mr-1" />
-                      Detay
+                      Profil
                     </Button>
                   </Link>
                 </TableCell>

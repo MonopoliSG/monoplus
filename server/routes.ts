@@ -637,9 +637,10 @@ Sadece JSON array döndür, başka açıklama ekleme.`;
   app.post("/api/ai/analyze", isAuthenticated, async (req, res) => {
     try {
       const { type } = req.body;
-      const customers = await storage.getAllCustomers();
+      // Use customer profiles with hashtags for richer AI analysis
+      const profiles = await storage.getAllCustomerProfilesForAiAnalysis();
 
-      if (customers.length === 0) {
+      if (profiles.length === 0) {
         return res.json({ analyses: [] });
       }
 
@@ -649,7 +650,7 @@ Sadece JSON array döndür, başka açıklama ekleme.`;
         return res.status(503).json({ message: "AI ozellikleri aktif degil. OPENAI_API_KEY gerekli." });
       }
 
-      const prompt = getAnalysisPrompt(type, customers);
+      const prompt = getProfileAnalysisPrompt(type, profiles);
 
       const response = await openai.chat.completions.create({
         model: "gpt-4o",
@@ -806,19 +807,20 @@ Sadece JSON array döndür.`;
         return res.status(503).json({ message: "AI özellikleri aktif değil. OPENAI_API_KEY gerekli." });
       }
 
-      const customers = await storage.getAllCustomers();
-      if (customers.length === 0) {
-        return res.status(400).json({ message: "Analiz için müşteri bulunamadı" });
+      // Use customer profiles with hashtags for richer AI analysis
+      const profiles = await storage.getAllCustomerProfilesForAiAnalysis();
+      if (profiles.length === 0) {
+        return res.status(400).json({ message: "Analiz için müşteri profili bulunamadı" });
       }
 
       // Delete existing predictions for this type
       await storage.deleteCustomerPredictionsByType(type);
 
-      // For large datasets, sample customers intelligently
-      const sampleSize = Math.min(200, customers.length);
-      const sampledCustomers = customers.slice(0, sampleSize);
+      // For large datasets, sample profiles intelligently
+      const sampleSize = Math.min(200, profiles.length);
+      const sampledProfiles = profiles.slice(0, sampleSize);
 
-      const prompt = getCustomerPredictionPrompt(type, sampledCustomers);
+      const prompt = getCustomerProfilePredictionPrompt(type, sampledProfiles);
 
       const response = await openai.chat.completions.create({
         model: "gpt-4o",
@@ -871,13 +873,15 @@ Sadece JSON array döndür.`;
         
         predictions = rawPredictions.map((p: any) => ({
           analysisType: type,
-          customerId: String(p.customerId || p.id || ""),
+          customerId: String(p.customerId || p.profileId || p.id || ""),
+          profileId: String(p.profileId || p.customerId || p.id || ""),
           customerName: String(p.customerName || p.name || p.müşteri_adı || ""),
           currentProduct: String(p.currentProduct || p.product || p.mevcut_ürün || ""),
           suggestedProduct: p.suggestedProduct || p.suggested_product || p.önerilen_ürün || null,
           probability: Math.min(100, Math.max(0, parseInt(p.probability || p.olasılık || p.risk) || 50)),
           reason: String(p.reason || p.sebep || p.açıklama || ""),
           city: p.city || p.şehir || null,
+          hashtags: p.hashtags || null,
         })).filter((p: any) => p.customerId && p.customerName);
         console.log("Filtered predictions count:", predictions.length);
       } catch (parseError) {
@@ -1462,4 +1466,221 @@ Kurallar:
   }
 
   return `Müşteri portföyünü analiz et. ${customers.length} müşteri var.`;
+}
+
+// Analysis prompt using customer profiles with hashtags
+function getProfileAnalysisPrompt(type: string, profiles: any[]): string {
+  const sample = profiles.slice(0, 50);
+  const branchSet = new Set<string>();
+  const citySet = new Set<string>();
+  const hashtagSet = new Set<string>();
+  
+  profiles.forEach(p => {
+    if (p.sahipOlunanUrunler) {
+      p.sahipOlunanUrunler.split(',').forEach((b: string) => branchSet.add(b.trim()));
+    }
+    if (p.sehir) citySet.add(p.sehir);
+    if (p.aiAnaliz) {
+      p.aiAnaliz.split(' ').filter((h: string) => h.startsWith('#')).forEach((h: string) => hashtagSet.add(h));
+    }
+  });
+  
+  const summary = {
+    total: profiles.length,
+    branches: Array.from(branchSet),
+    cities: Array.from(citySet).slice(0, 10),
+    hashtags: Array.from(hashtagSet).slice(0, 20),
+  };
+
+  switch (type) {
+    case "crossSell":
+    case "cross_sell":
+      return `Sen deneyimli bir sigorta uzmanısın. Müşteri profillerini ve hashtag'lerini analiz ederek çapraz satış fırsatlarını belirle.
+
+Portföy özeti:
+- Toplam müşteri profili: ${summary.total}
+- Branşlar: ${summary.branches.join(", ")}
+- Şehirler: ${summary.cities.join(", ")}
+- Mevcut Hashtag'ler: ${summary.hashtags.join(" ")}
+
+Örnek profiller (hashtag'ler dahil):
+${JSON.stringify(sample.slice(0, 5).map(p => ({
+  isim: p.musteriIsmi,
+  urunler: p.sahipOlunanUrunler,
+  sehir: p.sehir,
+  hashtags: p.aiAnaliz
+})), null, 2)}
+
+Lütfen şu formatta 3-5 çapraz satış fırsatı belirle. Hashtag'leri dikkate al:
+[
+  {
+    "title": "Fırsat başlığı",
+    "insight": "Detaylı açıklama - hashtag'lere dayalı önerileri içersin",
+    "confidence": 85,
+    "category": "Çapraz Satış",
+    "metadata": { "potentialCustomers": 100, "filters": { "hasBranch": "mevcut ürün", "notHasBranch": "önerilen ürün" } }
+  }
+]
+
+Sadece JSON array döndür.`;
+
+    case "cancellation":
+    case "churn_prediction":
+      return `Sen deneyimli bir sigorta uzmanısın. Müşteri profillerini ve hashtag'lerini analiz ederek iptal riski yüksek segmentleri belirle.
+
+Portföy özeti:
+- Toplam müşteri profili: ${summary.total}
+- Mevcut Hashtag'ler: ${summary.hashtags.join(" ")}
+
+Örnek profiller:
+${JSON.stringify(sample.slice(0, 5).map(p => ({
+  isim: p.musteriIsmi,
+  urunler: p.sahipOlunanUrunler,
+  hashtags: p.aiAnaliz
+})), null, 2)}
+
+Lütfen şu formatta iptal riski analizi yap. #yenileme_riski, #sadik_musteri gibi hashtag'leri dikkate al:
+[
+  {
+    "title": "Risk kategorisi veya analiz başlığı",
+    "insight": "İptal nedenleri, risk faktörleri ve önleme önerileri - hashtag'lere dayalı",
+    "confidence": 80,
+    "category": "İptal Tahmini",
+    "metadata": { "riskCustomers": 50 }
+  }
+]
+
+Sadece JSON array döndür.`;
+
+    case "segmentation":
+      return `Sen deneyimli bir sigorta uzmanısın. Müşteri profillerini ve hashtag'lerini kullanarak segmentlere ayır.
+
+Portföy özeti:
+- Toplam müşteri profili: ${summary.total}
+- Branşlar: ${summary.branches.join(", ")}
+- Şehirler: ${summary.cities.join(", ")}
+- Mevcut Hashtag'ler: ${summary.hashtags.join(" ")}
+
+Örnek profiller:
+${JSON.stringify(sample.slice(0, 5).map(p => ({
+  isim: p.musteriIsmi,
+  tip: p.musteriTipi,
+  urunler: p.sahipOlunanUrunler,
+  sehir: p.sehir,
+  hashtags: p.aiAnaliz
+})), null, 2)}
+
+Lütfen şu formatta 4-6 müşteri segmenti belirle. Hashtag'leri dikkate al (#premium, #ekonomik, #aile, #kurumsal vb.):
+[
+  {
+    "title": "Segment adı",
+    "insight": "Segment özellikleri, davranış kalıpları ve pazarlama önerileri - hashtag'lere dayalı",
+    "confidence": 85,
+    "category": "Segmentasyon",
+    "metadata": { "customerCount": 500, "avgPremium": 5000, "filters": { "customerType": "Bireysel", "hasBranch": "ürün" } }
+  }
+]
+
+Sadece JSON array döndür.`;
+
+    case "products":
+      return `Sen deneyimli bir sigorta uzmanısın. Mevcut portföy ve hashtag'lere göre yeni ürün önerileri ver.
+
+Mevcut branşlar: ${summary.branches.join(", ")}
+Toplam müşteri profili: ${summary.total}
+Mevcut Hashtag'ler: ${summary.hashtags.join(" ")}
+
+Lütfen şu formatta 2-4 yeni ürün önerisi ver:
+[
+  {
+    "title": "Ürün önerisi başlığı",
+    "insight": "Neden bu ürün ve hangi segmente sunulmalı - hashtag'lere dayalı",
+    "confidence": 75,
+    "category": "Ürün Önerisi"
+  }
+]
+
+Sadece JSON array döndür.`;
+
+    default:
+      return `Müşteri profillerini ve hashtag'lerini analiz et. Toplam ${summary.total} profil var. Hashtag'ler: ${summary.hashtags.join(" ")}`;
+  }
+}
+
+// New function using customer profiles with hashtags for richer AI analysis
+function getCustomerProfilePredictionPrompt(type: string, profiles: any[]): string {
+  const profileData = profiles.slice(0, 100).map((p) => ({
+    profileId: p.id,
+    name: p.musteriIsmi,
+    customerType: p.musteriTipi,
+    city: p.sehir,
+    products: p.sahipOlunanUrunler,
+    policyTypes: p.sahipOlunanPoliceTurleri,
+    activePolicy: p.aktifPolice,
+    totalPremium: p.toplamBrutPrim,
+    vehicles: p.aracBilgileri,
+    hashtags: p.aiAnaliz || "",
+  }));
+
+  if (type === "churn_prediction") {
+    return `Sen deneyimli bir sigorta uzmanısın. Aşağıdaki müşteri profillerinin iptal risklerini analiz et.
+
+Müşteri Profilleri (Hashtag'ler dahil):
+${JSON.stringify(profileData, null, 2)}
+
+Her müşteri profili için iptal riski tahmini yap. Hashtag'leri de dikkate al (örn: #yenileme_riski, #sadik_musteri, #yuksek_potansiyel).
+Şu JSON formatında döndür:
+[
+  {
+    "profileId": "profil id",
+    "customerName": "müşteri adı",
+    "currentProduct": "sahip olduğu ana ürünler",
+    "probability": 75,
+    "reason": "Potansiyel iptal sebebi açıklaması - hashtag'leri de kullanarak",
+    "city": "şehir",
+    "hashtags": "ilgili hashtag'ler"
+  }
+]
+
+Kurallar:
+- probability 0-100 arası olasılık yüzdesi olmalı
+- Hashtag'ler analizi zenginleştirmeli (örn: #yenileme_riski yüksek risk gösterir)
+- En yüksek riskli müşterilerden başla
+- reason alanına müşterinin neden iptal edebileceğini açıkla
+- EN AZ 50 profil için tahmin yap, mümkünse tüm profiller için
+- Sadece JSON array döndür, başka metin ekleme`;
+  }
+
+  if (type === "cross_sell") {
+    return `Sen deneyimli bir sigorta uzmanısın. Aşağıdaki müşteri profillerine çapraz satış fırsatlarını analiz et.
+
+Müşteri Profilleri (Hashtag'ler dahil):
+${JSON.stringify(profileData, null, 2)}
+
+Her müşteri profili için çapraz satış önerisi yap. Hashtag'leri de dikkate al (örn: #yuksek_potansiyel, #premium, #aile).
+Şu JSON formatında döndür:
+[
+  {
+    "profileId": "profil id",
+    "customerName": "müşteri adı",
+    "currentProduct": "sahip olduğu ana ürünler",
+    "suggestedProduct": "önerilen yeni ürün",
+    "probability": 85,
+    "reason": "Neden bu ürünü satın alabilir - hashtag'lere dayalı önerileri içersin",
+    "city": "şehir",
+    "hashtags": "ilgili hashtag'ler"
+  }
+]
+
+Kurallar:
+- probability 0-100 arası satış başarı olasılığı olmalı
+- Hashtag'ler önerilerinizi desteklemeli (örn: #aile olan müşteriye çocuk sağlık sigortası öner)
+- suggestedProduct: Kasko, Trafik, Sağlık, Konut, DASK, Ferdi Kaza, Seyahat, İşyeri gibi ürünler
+- En yüksek satış potansiyeli olan profillerden başla
+- reason alanına satış argümanını açıkla
+- EN AZ 50 profil için öneri yap, mümkünse tüm profiller için
+- Sadece JSON array döndür, başka metin ekleme`;
+  }
+
+  return `Müşteri profillerini analiz et. ${profiles.length} profil var.`;
 }
