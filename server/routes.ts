@@ -586,6 +586,7 @@ function getAnalysisPrompt(type: string, customers: any[]): string {
 
   switch (type) {
     case "crossSell":
+    case "cross_sell":
       return `Sen deneyimli bir sigorta uzmanısın. Müşteri portföyünü analiz et ve çapraz satış fırsatlarını belirle.
 
 Portföy özeti:
@@ -607,22 +608,24 @@ Lütfen şu formatta 3-5 çapraz satış fırsatı belirle:
 Sadece JSON array döndür.`;
 
     case "cancellation":
-      return `Sen deneyimli bir sigorta uzmanısın. İptal edilen poliçeleri analiz et.
+    case "churn_prediction":
+      return `Sen deneyimli bir sigorta uzmanısın. İptal riski yüksek müşterileri ve iptal nedenlerini analiz et.
 
 İptal istatistikleri:
 - Toplam iptal: ${summary.cancellations}
 - Toplam müşteri: ${summary.total}
 
 Örnek veriler:
-${JSON.stringify(sample.filter((c) => c.iptalNedeni).slice(0, 10), null, 2)}
+${JSON.stringify(sample.filter((c) => c.iptalSebebi).slice(0, 10), null, 2)}
 
-Lütfen şu formatta iptal analizi yap:
+Lütfen şu formatta iptal tahmin analizi yap:
 [
   {
-    "title": "Analiz başlığı",
-    "insight": "İptal nedenleri ve önleme önerileri",
+    "title": "Risk kategorisi veya analiz başlığı",
+    "insight": "İptal nedenleri, risk faktörleri ve önleme önerileri",
     "confidence": 80,
-    "category": "İptal Analizi"
+    "category": "İptal Tahmini",
+    "metadata": { "riskCustomers": 50 }
   }
 ]
 
@@ -641,6 +644,30 @@ Lütfen şu formatta 2-4 yeni ürün önerisi ver:
     "insight": "Neden bu ürün ve hangi segmente sunulmalı",
     "confidence": 75,
     "category": "Ürün Önerisi"
+  }
+]
+
+Sadece JSON array döndür.`;
+
+    case "segmentation":
+      return `Sen deneyimli bir sigorta uzmanısın. Müşteri portföyünü segmentlere ayırarak analiz et.
+
+Portföy özeti:
+- Toplam müşteri: ${summary.total}
+- Branşlar: ${summary.branches.join(", ")}
+- Şehirler: ${summary.cities.join(", ")}
+
+Örnek müşteriler:
+${JSON.stringify(sample.slice(0, 5), null, 2)}
+
+Lütfen şu formatta 4-6 müşteri segmenti belirle:
+[
+  {
+    "title": "Segment adı",
+    "insight": "Segment özellikleri, davranış kalıpları ve pazarlama önerileri",
+    "confidence": 85,
+    "category": "Segmentasyon",
+    "metadata": { "customerCount": 500, "avgPremium": 5000 }
   }
 ]
 
