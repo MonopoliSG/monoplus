@@ -6,7 +6,8 @@ import {
   PieChart,
   Upload,
   Sparkles,
-  Settings,
+  Target,
+  LogOut,
   Shield,
 } from "lucide-react";
 import {
@@ -21,12 +22,15 @@ import {
   SidebarHeader,
   SidebarFooter,
 } from "@/components/ui/sidebar";
+import { useAuth } from "@/hooks/useAuth";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 const menuItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Müşteriler", url: "/customers", icon: Users },
   { title: "Ürünler", url: "/products", icon: Package },
   { title: "Segmentler", url: "/segments", icon: PieChart },
+  { title: "Kampanyalar", url: "/campaigns", icon: Target },
   { title: "CSV İçe Aktar", url: "/import", icon: Upload },
 ];
 
@@ -36,6 +40,7 @@ const aiItems = [
 
 export function AppSidebar() {
   const [location] = useLocation();
+  const { user } = useAuth();
 
   return (
     <Sidebar>
@@ -92,13 +97,28 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter className="p-4">
+        {user && (
+          <div className="flex items-center gap-3 mb-3 px-2">
+            <Avatar className="h-8 w-8">
+              <AvatarImage src={(user as any).profileImageUrl} />
+              <AvatarFallback>
+                {((user as any).firstName?.[0] || (user as any).email?.[0] || "U").toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">
+                {(user as any).firstName || (user as any).email || "Kullanıcı"}
+              </p>
+            </div>
+          </div>
+        )}
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild data-testid="link-nav-settings">
-              <Link href="/settings">
-                <Settings className="h-4 w-4" />
-                <span>Ayarlar</span>
-              </Link>
+            <SidebarMenuButton asChild data-testid="button-logout">
+              <a href="/api/logout">
+                <LogOut className="h-4 w-4" />
+                <span>Çıkış Yap</span>
+              </a>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
