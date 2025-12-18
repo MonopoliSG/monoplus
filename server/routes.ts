@@ -1097,6 +1097,103 @@ Sadece JSON objesi döndür, başka metin ekleme.`;
     }
   });
 
+  // Surprise Me - Find niche segment with max 10 customers
+  app.post("/api/ai/surprise-me", isAuthenticated, async (req, res) => {
+    try {
+      if (!openai) {
+        return res.status(503).json({ message: "AI özellikleri aktif değil. OPENAI_API_KEY gerekli." });
+      }
+
+      const profiles = await storage.getAllCustomerProfilesForAiAnalysis();
+      if (profiles.length === 0) {
+        return res.status(400).json({ message: "Analiz için müşteri profili bulunamadı" });
+      }
+
+      // Sample profiles with their hashtags for analysis
+      const sampleSize = Math.min(200, profiles.length);
+      const sampledProfiles = profiles.slice(0, sampleSize).map((p: any) => ({
+        id: p.id,
+        name: p.musteriIsmi,
+        city: p.sehir,
+        customerType: p.musteriTipi,
+        products: p.products,
+        totalPolicies: p.totalPolicies,
+        totalPremium: p.totalPremium,
+        vehicleCount: p.vehicleCount,
+        hashtags: p.aiAnaliz,
+      }));
+
+      const systemPrompt = `Sen yaratıcı bir sigorta analisti. Görevin: Müşteri verilerini analiz ederek ŞAŞIRTICI ve NİŞ bir segment bulmak.
+
+Kurallar:
+1. SADECE 3-10 müşteri profilini kapsayan çok spesifik bir niş segment bul
+2. Ortak özellikleri olsun (hashtag, şehir, ürün kombinasyonu, vb.)
+3. Ya yeni ürün önerisi YA çapraz satış fırsatı YA da beklenmedik bir segment olsun
+4. Gerçekten şaşırtıcı ve ilginç olsun!
+
+Örnek niş segmentler:
+- "Antalya'da hem kasko hem seyahat sigortası olan ve #yuksek_potansiyel hashtag'i olan 5 müşteri - bunlara luxury seyahat paketi sunulabilir"
+- "İstanbul'daki #kurumsal ve #saglik hashtag'li 7 müşteri - grup sağlık sigortası upgrade fırsatı"
+- "Birden fazla aracı olan ve sadece trafik sigortası bulunan 8 müşteri - kasko dönüşüm potansiyeli yüksek"
+
+Müşteri profilleri (örnek ${sampleSize} profil):
+${JSON.stringify(sampledProfiles.slice(0, 50), null, 2)}
+
+Şu JSON formatında döndür:
+{
+  "title": "Şaşırtıcı segment adı (Türkçe, dikkat çekici)",
+  "insight": "Bu segment neden özel? Ne önerilebilir? Detaylı açıklama ve pazarlama stratejisi.",
+  "targetCustomers": ["Müşteri adı 1", "Müşteri adı 2", ...],
+  "commonTraits": ["Ortak özellik 1", "Ortak özellik 2"],
+  "recommendation": "Spesifik ürün/kampanya önerisi",
+  "potentialRevenue": "Tahmini gelir potansiyeli"
+}
+
+Sadece JSON objesi döndür.`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [{ role: "user", content: systemPrompt }],
+        max_completion_tokens: 1500,
+        temperature: 0.8, // Higher temperature for more creative results
+      });
+
+      let content = response.choices[0]?.message?.content || "{}";
+      content = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+      
+      try {
+        const surpriseData = JSON.parse(content);
+        
+        const analysis: InsertAiAnalysis = {
+          analysisType: "segmentation",
+          title: `🎁 ${surpriseData.title || "Sürpriz Segment"}`,
+          insight: `${surpriseData.insight || ""}\n\n📋 Hedef Müşteriler (${surpriseData.targetCustomers?.length || 0} kişi): ${surpriseData.targetCustomers?.join(", ") || "Belirleniyor"}\n\n🎯 Ortak Özellikler: ${surpriseData.commonTraits?.join(", ") || ""}\n\n💡 Öneri: ${surpriseData.recommendation || ""}\n\n💰 Potansiyel: ${surpriseData.potentialRevenue || "Hesaplanıyor"}`,
+          confidence: 90,
+          category: "Sürpriz Segment",
+          customerIds: [],
+          metadata: {
+            customerCount: surpriseData.targetCustomers?.length || 0,
+            isSurprise: true,
+            targetCustomers: surpriseData.targetCustomers || [],
+            commonTraits: surpriseData.commonTraits || [],
+          },
+          isActive: true,
+        };
+
+        await storage.createAiAnalysis(analysis);
+        const analyses = await storage.getAllAiAnalyses();
+        res.json({ success: true, analyses });
+      } catch (parseError) {
+        console.error("Error parsing surprise segment response:", parseError);
+        console.log("Raw response:", content);
+        res.status(500).json({ message: "AI yanıtı işlenemedi" });
+      }
+    } catch (error) {
+      console.error("Error creating surprise segment:", error);
+      res.status(500).json({ message: "Sürpriz segment oluşturulamadı" });
+    }
+  });
+
   // Customer Profiles API
   app.get("/api/customer-profiles/policy-types", isAuthenticated, async (req, res) => {
     try {

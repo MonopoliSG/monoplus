@@ -13,7 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
-import { Sparkles, RefreshCw, TrendingUp, AlertTriangle, ShoppingCart, FileSpreadsheet, Users, ExternalLink, Search, Filter, Wand2, Trash2, Hash, Tag } from "lucide-react";
+import { Sparkles, RefreshCw, TrendingUp, AlertTriangle, ShoppingCart, FileSpreadsheet, Users, ExternalLink, Search, Filter, Wand2, Trash2, Hash, Tag, Gift } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -501,6 +501,25 @@ export default function AIInsights() {
     },
   });
 
+  const surpriseMeMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/ai/surprise-me");
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ai/analyses"] });
+      toast({ title: "Sürpriz analiz tamamlandı", description: "Yeni bir niş segment keşfedildi!" });
+    },
+    onError: (error: Error) => {
+      if (isUnauthorizedError(error)) {
+        toast({ title: "Oturum sonlandı", variant: "destructive" });
+        setTimeout(() => { window.location.href = "/api/login"; }, 500);
+        return;
+      }
+      toast({ title: "Hata", description: "Sürpriz analiz yapılamadı", variant: "destructive" });
+    },
+  });
+
   const exportToExcel = async (analysisType: string, filters: Filters) => {
     try {
       const res = await apiRequest("POST", "/api/ai/predictions/export", {
@@ -531,7 +550,7 @@ export default function AIInsights() {
     }
   };
 
-  const isAnalyzing = runChurnMutation.isPending || runCrossSellMutation.isPending || runSegmentMutation.isPending || runCustomSegmentMutation.isPending;
+  const isAnalyzing = runChurnMutation.isPending || runCrossSellMutation.isPending || runSegmentMutation.isPending || runCustomSegmentMutation.isPending || surpriseMeMutation.isPending;
 
   return (
     <div className="p-6 space-y-6">
@@ -675,19 +694,35 @@ export default function AIInsights() {
                   <TrendingUp className="h-4 w-4" />
                   Segment Analizleri
                 </CardTitle>
-                <Button
-                  size="sm"
-                  onClick={() => runSegmentMutation.mutate()}
-                  disabled={isAnalyzing}
-                  data-testid="button-run-segmentation"
-                >
-                  {runSegmentMutation.isPending ? (
-                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <Sparkles className="h-4 w-4 mr-2" />
-                  )}
-                  Segmentasyon Çalıştır
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => surpriseMeMutation.mutate()}
+                    disabled={isAnalyzing}
+                    data-testid="button-surprise-me"
+                  >
+                    {surpriseMeMutation.isPending ? (
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Gift className="h-4 w-4 mr-2" />
+                    )}
+                    Beni Şaşırt
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => runSegmentMutation.mutate()}
+                    disabled={isAnalyzing}
+                    data-testid="button-run-segmentation"
+                  >
+                    {runSegmentMutation.isPending ? (
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-4 w-4 mr-2" />
+                    )}
+                    Segmentasyon Çalıştır
+                  </Button>
+                </div>
               </div>
             </CardHeader>
           </Card>

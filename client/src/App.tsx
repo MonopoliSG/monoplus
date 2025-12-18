@@ -14,7 +14,6 @@ import Dashboard from "@/pages/Dashboard";
 import Customers from "@/pages/Customers";
 import CustomerDetail from "@/pages/CustomerDetail";
 import Products from "@/pages/Products";
-import Segments from "@/pages/Segments";
 import Import from "@/pages/Import";
 import AIInsights from "@/pages/AIInsights";
 import Campaigns from "@/pages/Campaigns";
@@ -44,7 +43,6 @@ function Router() {
       <Route path="/customer-profiles" component={CustomerProfiles} />
       <Route path="/customer-profiles/:id" component={CustomerProfileDetail} />
       <Route path="/products" component={Products} />
-      <Route path="/segments" component={Segments} />
       <Route path="/import" component={Import} />
       <Route path="/ai-insights" component={AIInsights} />
       <Route path="/campaigns" component={Campaigns} />
