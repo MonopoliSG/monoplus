@@ -145,8 +145,9 @@ export async function registerRoutes(
       const segment = req.query.segment as string;
       const renewalDays = req.query.renewalDays ? parseInt(req.query.renewalDays as string) : undefined;
       const aiPredictionType = req.query.aiPredictionType as string;
+      const aiAnalysisId = req.query.aiAnalysisId as string;
 
-      console.log("[DEBUG] Paginated customers request:", { page, limit, search, city, branch, segment, renewalDays, aiPredictionType });
+      console.log("[DEBUG] Paginated customers request:", { page, limit, search, city, branch, segment, renewalDays, aiPredictionType, aiAnalysisId });
 
       const result = await storage.getCustomersPaginated({
         page,
@@ -157,6 +158,7 @@ export async function registerRoutes(
         segment,
         renewalDays,
         aiPredictionType,
+        aiAnalysisId,
       });
       
       res.json(result);

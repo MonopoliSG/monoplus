@@ -417,7 +417,7 @@ export default function AIInsights() {
                     </CardHeader>
                     <CardContent className="space-y-3">
                       <p className="text-sm text-muted-foreground">{analysis.insight}</p>
-                      <Link href={`/customers?segment=${encodeURIComponent(analysis.title)}`}>
+                      <Link href={`/customers?aiAnalysisId=${analysis.id}`}>
                         <Button variant="outline" size="sm" className="w-full" data-testid={`button-view-segment-${analysis.id}`}>
                           <Users className="h-4 w-4 mr-2" />
                           Müşterileri Gör

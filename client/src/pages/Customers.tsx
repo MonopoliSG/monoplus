@@ -47,6 +47,7 @@ export default function Customers() {
   const segmentFilter = searchParams.get("segment");
   const renewalDaysFilter = searchParams.get("renewalDays");
   const aiPredictionTypeFilter = searchParams.get("aiPredictionType");
+  const aiAnalysisIdFilter = searchParams.get("aiAnalysisId");
 
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -79,6 +80,7 @@ export default function Customers() {
       segmentFilter || "",
       renewalDaysFilter || "",
       aiPredictionTypeFilter || "",
+      aiAnalysisIdFilter || "",
     ],
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -90,6 +92,7 @@ export default function Customers() {
       if (segmentFilter) params.set("segment", segmentFilter);
       if (renewalDaysFilter) params.set("renewalDays", renewalDaysFilter);
       if (aiPredictionTypeFilter) params.set("aiPredictionType", aiPredictionTypeFilter);
+      if (aiAnalysisIdFilter) params.set("aiAnalysisId", aiAnalysisIdFilter);
       
       const res = await fetch(`/api/customers/paginated?${params.toString()}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch customers");
@@ -280,7 +283,7 @@ export default function Customers() {
             <p className="text-muted-foreground">
               {totalCustomers} müşteri {totalPages > 1 && `(Sayfa ${currentPage}/${totalPages})`}
             </p>
-            {(segmentFilter || renewalDaysFilter || aiPredictionTypeFilter) && (
+            {(segmentFilter || renewalDaysFilter || aiPredictionTypeFilter || aiAnalysisIdFilter) && (
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 {segmentFilter && (
                   <Badge variant="secondary" className="text-xs">
@@ -296,6 +299,11 @@ export default function Customers() {
                   <Badge variant="secondary" className="text-xs">
                     {aiPredictionTypeFilter === "cross_sell" ? "Çapraz Satış Fırsatı" : 
                      aiPredictionTypeFilter === "churn_prediction" ? "İptal Riski" : aiPredictionTypeFilter}
+                  </Badge>
+                )}
+                {aiAnalysisIdFilter && (
+                  <Badge variant="secondary" className="text-xs">
+                    AI Segment Analizi
                   </Badge>
                 )}
                 <Link href="/customers">

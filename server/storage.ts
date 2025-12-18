@@ -84,6 +84,7 @@ export interface IStorage {
     segment?: string;
     renewalDays?: number;
     aiPredictionType?: string;
+    aiAnalysisId?: string;
   }): Promise<{ customers: Customer[]; total: number; page: number; totalPages: number }>;
 }
 
@@ -364,6 +365,7 @@ export class DatabaseStorage implements IStorage {
     segment?: string;
     renewalDays?: number;
     aiPredictionType?: string;
+    aiAnalysisId?: string;
   }): Promise<{ customers: Customer[]; total: number; page: number; totalPages: number }> {
     const conditions = [];
     
@@ -385,6 +387,17 @@ export class DatabaseStorage implements IStorage {
           SELECT 1 FROM ${aiCustomerPredictions} 
           WHERE ${aiCustomerPredictions.customerId} = ${customers.id} 
           AND ${aiCustomerPredictions.analysisType} = ${filters.aiPredictionType}
+        )`
+      );
+    }
+    
+    // AI Analysis filter - filter by customer IDs stored in the analysis
+    if (filters.aiAnalysisId) {
+      conditions.push(
+        sql`${customers.id}::text IN (
+          SELECT jsonb_array_elements_text(customer_ids) 
+          FROM ai_analyses 
+          WHERE id = ${filters.aiAnalysisId} AND customer_ids IS NOT NULL
         )`
       );
     }
