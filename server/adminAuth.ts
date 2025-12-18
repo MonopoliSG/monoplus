@@ -4,6 +4,7 @@ import session from "express-session";
 import type { Express, RequestHandler } from "express";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
+import pg from "pg";
 
 // Admin credentials from environment - REQUIRED for security
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME;
@@ -16,12 +17,27 @@ if (!ADMIN_USERNAME || !ADMIN_PASSWORD) {
 export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 7 days
   const pgStore = connectPg(session);
+  
+  // Create a dedicated pool for sessions with proper SSL config
+  const isProduction = process.env.NODE_ENV === 'production';
+  const isExternalDb = process.env.DATABASE_URL?.includes('supabase') || 
+                       process.env.DATABASE_URL?.includes('render') ||
+                       process.env.DATABASE_URL?.includes('pooler');
+  
+  const sslConfig = (isProduction || isExternalDb) ? { rejectUnauthorized: false } : undefined;
+  
+  const sessionPool = new pg.Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: sslConfig
+  });
+  
   const sessionStore = new pgStore({
-    pool: pool,
-    createTableIfMissing: true,
+    pool: sessionPool,
+    createTableIfMissing: false, // Tables created via migration SQL
     ttl: sessionTtl,
     tableName: "sessions",
   });
+  
   return session({
     secret: process.env.SESSION_SECRET || "monoplus-secret-key-change-in-production",
     store: sessionStore,
@@ -29,8 +45,9 @@ export function getSession() {
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: isProduction,
       maxAge: sessionTtl,
+      sameSite: isProduction ? 'none' : 'lax',
     },
   });
 }

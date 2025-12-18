@@ -10,14 +10,18 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-// Configure pool with SSL support for Supabase/external databases
+// Configure pool with SSL support for production/external databases
+const isProduction = process.env.NODE_ENV === 'production';
 const isExternalDb = process.env.DATABASE_URL.includes('supabase') || 
                      process.env.DATABASE_URL.includes('render') ||
+                     process.env.DATABASE_URL.includes('pooler') ||
                      process.env.USE_SSL === 'true';
+
+const sslConfig = (isProduction || isExternalDb) ? { rejectUnauthorized: false } : undefined;
 
 export const pool = new Pool({ 
   connectionString: process.env.DATABASE_URL,
-  ssl: isExternalDb ? { rejectUnauthorized: false } : undefined
+  ssl: sslConfig
 });
 
 export const db = drizzle(pool, { schema });
