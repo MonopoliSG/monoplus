@@ -58,7 +58,9 @@ export default function CustomerProfiles() {
   const [policyType, setPolicyType] = useState(searchParams.get("policyType") || "");
   const [product, setProduct] = useState(searchParams.get("product") || "");
   const hashtagParams = searchParams.getAll("hashtag");
-  const initialHashtags = hashtagParams.length > 0 ? hashtagParams.join(",") : (searchParams.get("hashtags") || "");
+  const initialHashtags = hashtagParams.length > 0 
+    ? hashtagParams.map(h => h.startsWith('#') ? h : `#${h}`).join(",") 
+    : (searchParams.get("hashtags") || "");
   const [hashtags, setHashtags] = useState(initialHashtags);
   const [hasBranch, setHasBranch] = useState(searchParams.get("hasBranch") || "");
   const [notHasBranch, setNotHasBranch] = useState(searchParams.get("notHasBranch") || "");
@@ -151,7 +153,7 @@ export default function CustomerProfiles() {
     if (policyType && policyType !== "all") params.set("policyType", policyType);
     if (product && product !== "all") params.set("product", product);
     if (hashtags) {
-      hashtags.split(",").map(h => h.trim()).filter(h => h).forEach(h => params.append("hashtag", h));
+      hashtags.split(",").map(h => h.trim()).filter(h => h).forEach(h => params.append("hashtag", h.replace(/^#/, '')));
     }
     if (hasBranch) params.set("hasBranch", hasBranch);
     if (notHasBranch) params.set("notHasBranch", notHasBranch);
