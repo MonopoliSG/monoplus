@@ -109,7 +109,7 @@ function parseFiltersFromUrl(location: string): {
 
 export default function Customers() {
   const [location, navigate] = useLocation();
-  const filters = parseFiltersFromUrl(location);
+  const filters = useMemo(() => parseFiltersFromUrl(location), [location]);
   
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -124,19 +124,10 @@ export default function Customers() {
     setLocalSearch(filters.search);
   }, [filters.search]);
 
-  // Debounced search update
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (localSearch !== filters.search) {
-        updateFilters({ search: localSearch || undefined, page: undefined });
-      }
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [localSearch]);
-
-  // Update URL with new filters
-  const updateFilters = useCallback((newFilters: Partial<typeof filters>) => {
-    const merged = { ...filters, ...newFilters };
+  // Update URL with new filters - use location directly to avoid stale closure
+  const updateFilters = useCallback((newFilters: Record<string, string | number | undefined>) => {
+    const currentFilters = parseFiltersFromUrl(location);
+    const merged = { ...currentFilters, ...newFilters };
     // Reset page to 1 when filters change (except when explicitly setting page)
     if (!('page' in newFilters)) {
       merged.page = 1;
@@ -146,17 +137,27 @@ export default function Customers() {
       city: merged.city || undefined,
       branch: merged.branch || undefined,
       segment: merged.segment || undefined,
-      renewalDays: merged.renewalDays ? parseInt(merged.renewalDays) : undefined,
+      renewalDays: merged.renewalDays ? parseInt(String(merged.renewalDays)) : undefined,
       aiPredictionType: merged.aiPredictionType || undefined,
       aiAnalysisId: merged.aiAnalysisId || undefined,
       dateType: merged.dateType || undefined,
       dateFrom: merged.dateFrom || undefined,
       dateTo: merged.dateTo || undefined,
       customerType: merged.customerType || undefined,
-      page: merged.page,
+      page: merged.page as number,
     });
     navigate(url, { replace: true });
-  }, [filters, navigate]);
+  }, [location, navigate]);
+
+  // Debounced search update
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (localSearch !== filters.search) {
+        updateFilters({ search: localSearch || undefined, page: undefined });
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [localSearch, filters.search, updateFilters]);
 
   // Check if any filters are active
   const hasActiveFilters = !!(
