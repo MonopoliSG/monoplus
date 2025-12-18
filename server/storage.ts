@@ -374,34 +374,60 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(customers.anaBrans, filters.branch));
     }
     if (filters.segment) {
-      const segmentLower = filters.segment.toLowerCase();
+      const segmentLower = filters.segment.toLowerCase().replace(/i̇/g, 'i').replace(/ı/g, 'i');
       const segmentConditions: any[] = [];
       
-      if (segmentLower.includes("kurumsal")) {
-        segmentConditions.push(like(customers.firmaTipi, `%tüzel%`));
+      // Müşteri tipi filtreleme
+      if (segmentLower.includes("kurumsal") || segmentLower.includes("tüzel")) {
+        segmentConditions.push(like(customers.musteriTipi, `%Kurumsal%`));
       }
-      if (segmentLower.includes("bireysel")) {
-        segmentConditions.push(like(customers.firmaTipi, `%gerçek%`));
+      if (segmentLower.includes("bireysel") || segmentLower.includes("gerçek")) {
+        segmentConditions.push(like(customers.musteriTipi, `%Bireysel%`));
       }
+      
+      // Branş filtreleme - daha geniş eşleştirme
       if (segmentLower.includes("trafik")) {
-        segmentConditions.push(like(customers.anaBrans, `%trafik%`));
+        segmentConditions.push(like(customers.anaBrans, `%Trafik%`));
       }
       if (segmentLower.includes("kasko")) {
-        segmentConditions.push(like(customers.anaBrans, `%kasko%`));
+        segmentConditions.push(like(customers.anaBrans, `%Kasko%`));
       }
-      if (segmentLower.includes("sağlık")) {
-        segmentConditions.push(like(customers.anaBrans, `%sağlık%`));
+      if (segmentLower.includes("oto") && !segmentLower.includes("otomot")) {
+        segmentConditions.push(like(customers.anaBrans, `%Oto%`));
+      }
+      if (segmentLower.includes("saglik") || segmentLower.includes("sağlık") || segmentLower.includes("saglık")) {
+        segmentConditions.push(like(customers.anaBrans, `%Sağlık%`));
+        segmentConditions.push(like(customers.anaBrans, `%Saglik%`));
+        segmentConditions.push(like(customers.anaBrans, `%Sa?l?k%`));
       }
       if (segmentLower.includes("dask")) {
-        segmentConditions.push(like(customers.anaBrans, `%dask%`));
+        segmentConditions.push(like(customers.anaBrans, `%Dask%`));
+        segmentConditions.push(like(customers.anaBrans, `%DASK%`));
       }
-      if (segmentLower.includes("yangın") || segmentLower.includes("konut")) {
-        segmentConditions.push(like(customers.anaBrans, `%yangın%`));
-        segmentConditions.push(like(customers.anaBrans, `%konut%`));
+      if (segmentLower.includes("yangin") || segmentLower.includes("yangın") || segmentLower.includes("konut")) {
+        segmentConditions.push(like(customers.anaBrans, `%Yangın%`));
+        segmentConditions.push(like(customers.anaBrans, `%Yang?n%`));
+        segmentConditions.push(like(customers.anaBrans, `%Konut%`));
       }
-      if (segmentLower.includes("mühendislik")) {
-        segmentConditions.push(like(customers.anaBrans, `%mühendislik%`));
+      if (segmentLower.includes("muhendislik") || segmentLower.includes("mühendislik") || segmentLower.includes("insaat") || segmentLower.includes("inşaat")) {
+        segmentConditions.push(like(customers.anaBrans, `%Mühendislik%`));
+        segmentConditions.push(like(customers.anaBrans, `%Mühendis%`));
       }
+      if (segmentLower.includes("seyahat")) {
+        segmentConditions.push(like(customers.anaBrans, `%Seyahat%`));
+      }
+      if (segmentLower.includes("nakliyat")) {
+        segmentConditions.push(like(customers.anaBrans, `%Nakliyat%`));
+      }
+      if (segmentLower.includes("isyeri") || segmentLower.includes("işyeri")) {
+        segmentConditions.push(like(customers.anaBrans, `%İşyeri%`));
+        segmentConditions.push(like(customers.anaBrans, `%Isyeri%`));
+      }
+      if (segmentLower.includes("ferdi") || segmentLower.includes("kaza")) {
+        segmentConditions.push(like(customers.anaBrans, `%Ferdi%`));
+        segmentConditions.push(like(customers.anaBrans, `%Kaza%`));
+      }
+      
       if (segmentConditions.length > 0) {
         conditions.push(or(...segmentConditions));
       }
