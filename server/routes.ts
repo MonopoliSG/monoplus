@@ -5,6 +5,13 @@ import { setupAdminAuth, isAuthenticated } from "./adminAuth";
 import { insertCustomerSchema, insertProductSchema, insertSegmentSchema, insertCampaignSchema, csvColumnMapping, type InsertCustomer, type InsertAiCustomerPrediction, type InsertAiAnalysis } from "@shared/schema";
 import OpenAI from "openai";
 import ExcelJS from "exceljs";
+import multer from "multer";
+
+// Configure multer for file uploads
+const upload = multer({ 
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
+});
 
 // Date fields in the customer schema
 const dateFields = new Set([
@@ -235,6 +242,120 @@ export async function registerRoutes(
       res.json({ duplicates, hasDuplicates: duplicates.length > 0 });
     } catch (error) {
       res.status(500).json({ message: "Failed to check duplicates" });
+    }
+  });
+
+  // Excel Import endpoint - handles .xlsx files with proper Turkish character encoding
+  app.post("/api/customers/import-excel", isAuthenticated, upload.single('file'), async (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "Dosya yüklenmedi" });
+      }
+
+      const overwrite = req.body.overwrite === 'true';
+      const clearExisting = req.body.clearExisting === 'true';
+      
+      console.log("[Excel Import] Starting import, file size:", req.file.size, "bytes");
+      console.log("[Excel Import] Options - overwrite:", overwrite, "clearExisting:", clearExisting);
+
+      // If clearExisting is true, delete all existing customers first
+      if (clearExisting) {
+        console.log("[Excel Import] Clearing existing customers...");
+        await storage.deleteAllCustomers();
+        console.log("[Excel Import] Existing customers cleared");
+      }
+
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(req.file.buffer);
+      
+      const worksheet = workbook.getWorksheet(1);
+      if (!worksheet) {
+        return res.status(400).json({ message: "Excel dosyasında çalışma sayfası bulunamadı" });
+      }
+
+      const results = {
+        created: 0,
+        updated: 0,
+        duplicates: [] as any[],
+        errors: [] as string[],
+        totalRows: 0,
+      };
+
+      // Get headers from first row
+      const headerRow = worksheet.getRow(1);
+      const headers: string[] = [];
+      headerRow.eachCell((cell, colNumber) => {
+        headers[colNumber] = cell.value?.toString() || '';
+      });
+
+      console.log("[Excel Import] Headers found:", headers.filter(h => h).length);
+
+      // Process each data row
+      worksheet.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) return; // Skip header row
+        results.totalRows++;
+      });
+
+      let processedRows = 0;
+      for (let rowNumber = 2; rowNumber <= worksheet.rowCount; rowNumber++) {
+        const row = worksheet.getRow(rowNumber);
+        const rowData: Record<string, string> = {};
+        
+        row.eachCell((cell, colNumber) => {
+          const header = headers[colNumber];
+          if (header) {
+            let value = '';
+            if (cell.value instanceof Date) {
+              value = cell.value.toISOString().split('T')[0];
+            } else if (typeof cell.value === 'object' && cell.value !== null) {
+              value = (cell.value as any).text || (cell.value as any).result?.toString() || '';
+            } else {
+              value = cell.value?.toString() || '';
+            }
+            rowData[header] = value;
+          }
+        });
+
+        // Skip empty rows
+        if (Object.keys(rowData).length === 0) continue;
+
+        try {
+          const customerRecord = parseCustomerFromCsv(rowData);
+
+          // Check for duplicates by TC Kimlik No
+          if (customerRecord.tcKimlikNo) {
+            const existing = await storage.getCustomerByTcKimlik(customerRecord.tcKimlikNo);
+            if (existing && !overwrite && !clearExisting) {
+              results.duplicates.push({
+                existing,
+                new: customerRecord,
+              });
+              continue;
+            }
+          }
+
+          const { customer, isNew } = await storage.upsertCustomerByTcKimlik(customerRecord as InsertCustomer);
+          if (isNew) {
+            results.created++;
+          } else {
+            results.updated++;
+          }
+          processedRows++;
+          
+          // Log progress every 100 rows
+          if (processedRows % 100 === 0) {
+            console.log(`[Excel Import] Processed ${processedRows} rows...`);
+          }
+        } catch (err: any) {
+          results.errors.push(`Satır ${rowNumber}: ${err.message}`);
+        }
+      }
+
+      console.log("[Excel Import] Completed - Created:", results.created, "Updated:", results.updated, "Duplicates:", results.duplicates.length);
+      res.json(results);
+    } catch (error) {
+      console.error("Error importing Excel:", error);
+      res.status(500).json({ message: "Excel dosyası işlenirken hata oluştu" });
     }
   });
 

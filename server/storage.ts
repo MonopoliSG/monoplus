@@ -37,6 +37,7 @@ export interface IStorage {
   getCustomersWithRenewalIn30Days(): Promise<Customer[]>;
   getCustomersByIds(ids: string[]): Promise<Customer[]>;
   getCustomerCount(): Promise<number>;
+  deleteAllCustomers(): Promise<void>;
   
   getAllProducts(): Promise<Product[]>;
   getProduct(id: string): Promise<Product | undefined>;
@@ -173,6 +174,10 @@ export class DatabaseStorage implements IStorage {
   async getCustomerCount(): Promise<number> {
     const result = await db.select({ count: sql<number>`count(*)` }).from(customers);
     return Number(result[0]?.count || 0);
+  }
+
+  async deleteAllCustomers(): Promise<void> {
+    await db.delete(customers);
   }
 
   async getAllProducts(): Promise<Product[]> {
