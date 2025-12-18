@@ -114,6 +114,10 @@ export interface IStorage {
     city?: string;
     customerType?: string;
     policyType?: string;
+    hashtag?: string;
+    product?: string;
+    vehicleBrand?: string;
+    hasAiAnalysis?: boolean;
   }): Promise<{ profiles: CustomerProfile[]; total: number; page: number; totalPages: number }>;
   getDistinctPolicyTypes(): Promise<string[]>;
   getCustomerProfile(id: string): Promise<CustomerProfile | undefined>;
@@ -699,6 +703,10 @@ export class DatabaseStorage implements IStorage {
     city?: string;
     customerType?: string;
     policyType?: string;
+    hashtag?: string;
+    product?: string;
+    vehicleBrand?: string;
+    hasAiAnalysis?: boolean;
   }): Promise<{ profiles: CustomerProfile[]; total: number; page: number; totalPages: number }> {
     const conditions = [];
     
@@ -723,21 +731,26 @@ export class DatabaseStorage implements IStorage {
       conditions.push(ilike(customerProfiles.musteriTipi, `%${filters.customerType}%`));
     }
     
+    if (filters.hashtag && filters.hashtag !== "all") {
+      conditions.push(ilike(customerProfiles.aiAnaliz, `%${filters.hashtag}%`));
+    }
+    
+    if (filters.product && filters.product !== "all") {
+      conditions.push(ilike(customerProfiles.sahipOlunanUrunler, `%${filters.product}%`));
+    }
+    
+    if (filters.vehicleBrand && filters.vehicleBrand !== "all") {
+      conditions.push(ilike(customerProfiles.aracBilgileri, `%${filters.vehicleBrand}%`));
+    }
+    
+    if (filters.hasAiAnalysis) {
+      conditions.push(isNotNull(customerProfiles.aiAnaliz));
+    }
+    
     const offset = (filters.page - 1) * filters.limit;
     
     if (filters.policyType && filters.policyType !== "all") {
-      const hesapKodlari = await db
-        .selectDistinct({ hesapKodu: customers.hesapKodu })
-        .from(customers)
-        .where(eq(customers.policeTuru, filters.policyType));
-      
-      const kodlar = hesapKodlari.map(h => h.hesapKodu).filter((v): v is string => v !== null);
-      
-      if (kodlar.length === 0) {
-        return { profiles: [], total: 0, page: filters.page, totalPages: 0 };
-      }
-      
-      conditions.push(inArray(customerProfiles.hesapKodu, kodlar));
+      conditions.push(ilike(customerProfiles.sahipOlunanPoliceTurleri, `%${filters.policyType}%`));
     }
     
     const countResult = await db

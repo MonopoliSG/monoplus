@@ -21,6 +21,26 @@ import { isUnauthorizedError } from "@/lib/authUtils";
 import type { AiCustomerPrediction, AiAnalysis, CustomerProfile } from "@shared/schema";
 import { buildCustomerFilterUrl } from "./Customers";
 
+// Build URL for customer profiles page with filters
+function buildProfileFilterUrl(filters: {
+  search?: string;
+  city?: string;
+  customerType?: string;
+  policyType?: string;
+  product?: string;
+  hashtag?: string;
+}): string {
+  const params = new URLSearchParams();
+  if (filters.search) params.set("search", filters.search);
+  if (filters.city) params.set("city", filters.city);
+  if (filters.customerType) params.set("customerType", filters.customerType);
+  if (filters.policyType) params.set("policyType", filters.policyType);
+  if (filters.product) params.set("product", filters.product);
+  if (filters.hashtag) params.set("hashtag", filters.hashtag);
+  const queryString = params.toString();
+  return queryString ? `/customer-profiles?${queryString}` : "/customer-profiles";
+}
+
 // Product name mapping for Turkish insurance products
 const productNameMapping: Record<string, string> = {
   "kasko": "Oto Kaza (Kasko)",
@@ -86,7 +106,56 @@ interface SegmentMetadata {
   };
 }
 
-// Parse segment title and metadata to build appropriate filters
+// Reverse mapping from display name to raw branch key for profile filters
+const reverseProductMapping: Record<string, string> = {
+  "Oto Kaza (Kasko)": "Kasko",
+  "Oto Kaza (Trafik)": "Trafik",
+  "Dask": "DASK",
+  "Sağlık": "Sağlık",
+  "Yangın (Konut)": "Konut",
+  "Seyahat Sağlık": "Seyahat",
+  "Ferdi Kaza": "Ferdi Kaza",
+  "Nakliyat": "Nakliyat",
+  "Yangın (İşyeri)": "İşyeri",
+  "Mühendislik": "Mühendislik",
+  "Sorumluluk": "Sorumluluk",
+  "Hayat": "Hayat",
+};
+
+// Parse segment title and metadata to build profile filter URL (uses customer_profiles)
+function buildSegmentProfileUrl(segmentTitle: string, metadata?: SegmentMetadata): string {
+  const title = segmentTitle;
+  const lowerTitle = title.toLowerCase().replace(/i̇/g, 'i').replace(/ı/g, 'i');
+  const filters: { city?: string; customerType?: string; product?: string; policyType?: string } = {};
+  
+  if (metadata?.city) filters.city = metadata.city;
+  if (metadata?.customerType) filters.customerType = metadata.customerType;
+  if (metadata?.branch) {
+    // Convert display name to raw branch key
+    filters.product = reverseProductMapping[metadata.branch] || metadata.branch;
+  }
+  
+  // Detect customer type from title
+  if (!filters.customerType) {
+    if (lowerTitle.includes("kurumsal") || lowerTitle.includes("tüzel")) {
+      filters.customerType = "Kurumsal";
+    } else if (lowerTitle.includes("bireysel") || lowerTitle.includes("gerçek")) {
+      filters.customerType = "Bireysel";
+    }
+  }
+  
+  // Detect product from title using raw branch key
+  if (!filters.product) {
+    const displayProduct = findProductInText(title);
+    if (displayProduct) {
+      filters.product = reverseProductMapping[displayProduct] || displayProduct;
+    }
+  }
+  
+  return buildProfileFilterUrl(filters);
+}
+
+// Parse segment title and metadata to build appropriate filters (legacy - uses customers table)
 function buildSegmentFilterUrl(segmentTitle: string, metadata?: SegmentMetadata): string {
   const title = segmentTitle;
   const lowerTitle = title.toLowerCase().replace(/i̇/g, 'i').replace(/ı/g, 'i');
@@ -678,10 +747,10 @@ export default function AIInsights() {
                     </CardHeader>
                     <CardContent className="space-y-3">
                       <p className="text-sm text-muted-foreground">{analysis.insight}</p>
-                      <Link href={buildSegmentFilterUrl(analysis.title, metadata || undefined)}>
+                      <Link href={buildSegmentProfileUrl(analysis.title, metadata || undefined)}>
                         <Button variant="outline" size="sm" className="w-full" data-testid={`button-view-segment-${analysis.id}`}>
                           <Users className="h-4 w-4 mr-2" />
-                          Müşterileri Gör
+                          Müşteri Profillerini Gör
                         </Button>
                       </Link>
                     </CardContent>

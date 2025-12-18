@@ -32,7 +32,8 @@ import {
   MapPin,
   Building2,
   User,
-  Sparkles
+  Sparkles,
+  Car
 } from "lucide-react";
 import type { CustomerProfile } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -55,6 +56,8 @@ export default function CustomerProfiles() {
   const [city, setCity] = useState(searchParams.get("city") || "");
   const [customerType, setCustomerType] = useState(searchParams.get("customerType") || "");
   const [policyType, setPolicyType] = useState(searchParams.get("policyType") || "");
+  const [product, setProduct] = useState(searchParams.get("product") || "");
+  const [hashtag, setHashtag] = useState(searchParams.get("hashtag") || "");
   const [page, setPage] = useState(parseInt(searchParams.get("page") || "1"));
 
   const { data: policyTypes } = useQuery<string[]>({
@@ -62,15 +65,17 @@ export default function CustomerProfiles() {
   });
 
   const { data, isLoading, refetch } = useQuery<PaginatedProfilesResponse>({
-    queryKey: ["/api/customer-profiles", { page, search, city, customerType, policyType }],
+    queryKey: ["/api/customer-profiles", { page, search, city, customerType, policyType, product, hashtag }],
     queryFn: async () => {
       const params = new URLSearchParams();
       params.set("page", page.toString());
       params.set("limit", "25");
       if (search) params.set("search", search);
-      if (city) params.set("city", city);
-      if (customerType) params.set("customerType", customerType);
-      if (policyType) params.set("policyType", policyType);
+      if (city && city !== "all") params.set("city", city);
+      if (customerType && customerType !== "all") params.set("customerType", customerType);
+      if (policyType && policyType !== "all") params.set("policyType", policyType);
+      if (product && product !== "all") params.set("product", product);
+      if (hashtag) params.set("hashtag", hashtag);
       
       const response = await fetch(`/api/customer-profiles?${params.toString()}`, {
         credentials: "include",
@@ -125,19 +130,34 @@ export default function CustomerProfiles() {
   useEffect(() => {
     const params = new URLSearchParams();
     if (search) params.set("search", search);
-    if (city) params.set("city", city);
-    if (customerType) params.set("customerType", customerType);
-    if (policyType) params.set("policyType", policyType);
+    if (city && city !== "all") params.set("city", city);
+    if (customerType && customerType !== "all") params.set("customerType", customerType);
+    if (policyType && policyType !== "all") params.set("policyType", policyType);
+    if (product && product !== "all") params.set("product", product);
+    if (hashtag) params.set("hashtag", hashtag);
     if (page > 1) params.set("page", page.toString());
     
     const newUrl = params.toString() ? `/customer-profiles?${params.toString()}` : "/customer-profiles";
     setLocation(newUrl, { replace: true });
-  }, [search, city, customerType, policyType, page, setLocation]);
+  }, [search, city, customerType, policyType, product, hashtag, page, setLocation]);
 
   const handleSearch = () => {
     setPage(1);
     refetch();
   };
+
+  const clearFilters = () => {
+    setSearch("");
+    setCity("");
+    setCustomerType("");
+    setPolicyType("");
+    setProduct("");
+    setHashtag("");
+    setPage(1);
+    setLocation("/customer-profiles");
+  };
+
+  const hasActiveFilters = search || city || customerType || policyType || product || hashtag;
 
   const formatCurrency = (value: string | null) => {
     if (!value) return "-";
@@ -235,10 +255,40 @@ export default function CustomerProfiles() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="w-[180px]">
+              <Select value={product} onValueChange={setProduct}>
+                <SelectTrigger data-testid="select-product">
+                  <SelectValue placeholder="Ürün" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tüm Ürünler</SelectItem>
+                  <SelectItem value="Kasko">Kasko</SelectItem>
+                  <SelectItem value="Trafik">Trafik</SelectItem>
+                  <SelectItem value="Konut">Konut</SelectItem>
+                  <SelectItem value="DASK">DASK</SelectItem>
+                  <SelectItem value="Sağlık">Sağlık</SelectItem>
+                  <SelectItem value="Hayat">Hayat</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex-1 min-w-[180px]">
+              <Input
+                placeholder="Hashtag ara (#premium, #kurumsal...)"
+                value={hashtag}
+                onChange={(e) => setHashtag(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                data-testid="input-hashtag"
+              />
+            </div>
             <Button onClick={handleSearch} data-testid="button-apply-filters">
               <Search className="h-4 w-4 mr-2" />
               Ara
             </Button>
+            {hasActiveFilters && (
+              <Button variant="outline" onClick={clearFilters} data-testid="button-clear-filters">
+                Temizle
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -266,6 +316,7 @@ export default function CustomerProfiles() {
                       <TableHead>Sehir</TableHead>
                       <TableHead className="text-center">Poliçeler</TableHead>
                       <TableHead>Ürünler</TableHead>
+                      <TableHead>Araçlar</TableHead>
                       <TableHead className="text-right">Toplam Prim</TableHead>
                       <TableHead className="text-center">Islemler</TableHead>
                     </TableRow>
@@ -338,6 +389,33 @@ export default function CustomerProfiles() {
                               </Badge>
                             )}
                           </div>
+                        </TableCell>
+                        <TableCell>
+                          {profile.aracBilgileri && (() => {
+                            try {
+                              const araclar = JSON.parse(profile.aracBilgileri);
+                              if (araclar && araclar.length > 0) {
+                                return (
+                                  <div className="flex flex-wrap gap-1 max-w-[180px]">
+                                    {araclar.slice(0, 2).map((arac: any, idx: number) => (
+                                      <Badge key={idx} variant="outline" className="text-xs">
+                                        <Car className="h-3 w-3 mr-1" />
+                                        {arac.marka}
+                                      </Badge>
+                                    ))}
+                                    {araclar.length > 2 && (
+                                      <Badge variant="outline" className="text-xs">
+                                        +{araclar.length - 2}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                );
+                              }
+                              return <span className="text-muted-foreground text-xs">-</span>;
+                            } catch {
+                              return <span className="text-muted-foreground text-xs">-</span>;
+                            }
+                          })()}
                         </TableCell>
                         <TableCell className="text-right font-medium">
                           {formatCurrency(profile.toplamBrutPrim)}

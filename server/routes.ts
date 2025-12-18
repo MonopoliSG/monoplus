@@ -1112,6 +1112,10 @@ Sadece JSON objesi döndür, başka metin ekleme.`;
       const city = req.query.city as string;
       const customerType = req.query.customerType as string;
       const policyType = req.query.policyType as string;
+      const hashtag = req.query.hashtag as string;
+      const product = req.query.product as string;
+      const vehicleBrand = req.query.vehicleBrand as string;
+      const hasAiAnalysis = req.query.hasAiAnalysis === "true";
       
       const result = await storage.getCustomerProfilesPaginated({
         page,
@@ -1120,6 +1124,10 @@ Sadece JSON objesi döndür, başka metin ekleme.`;
         city,
         customerType,
         policyType,
+        hashtag,
+        product,
+        vehicleBrand,
+        hasAiAnalysis,
       });
       
       res.json(result);
