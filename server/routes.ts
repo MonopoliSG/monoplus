@@ -153,8 +153,16 @@ export async function registerRoutes(
       const hasBranch = req.query.hasBranch as string;
       const notHasBranch = req.query.notHasBranch as string;
       const minAge = req.query.minAge ? parseInt(req.query.minAge as string) : undefined;
+      // Advanced filter parameters
+      const hasBranch2 = req.query.hasBranch2 as string;
+      const notHasBranch2 = req.query.notHasBranch2 as string;
+      const policyCountMin = req.query.policyCountMin ? parseInt(req.query.policyCountMin as string) : undefined;
+      const policyCountMax = req.query.policyCountMax ? parseInt(req.query.policyCountMax as string) : undefined;
+      const renewalProduct = req.query.renewalProduct as string;
+      const vehicleCountMin = req.query.vehicleCountMin ? parseInt(req.query.vehicleCountMin as string) : undefined;
+      const vehicleAgeMax = req.query.vehicleAgeMax ? parseInt(req.query.vehicleAgeMax as string) : undefined;
 
-      console.log("[DEBUG] Paginated customers request:", { page, limit, search, city, branch, segment, renewalDays, aiPredictionType, aiAnalysisId, customerType, dateType, dateFrom, dateTo, hasBranch, notHasBranch, minAge });
+      console.log("[DEBUG] Paginated customers request:", { page, limit, search, city, branch, segment, renewalDays, aiPredictionType, aiAnalysisId, customerType, dateType, dateFrom, dateTo, hasBranch, notHasBranch, minAge, hasBranch2, notHasBranch2, policyCountMin, policyCountMax, renewalProduct, vehicleCountMin, vehicleAgeMax });
 
       const result = await storage.getCustomersPaginated({
         page,
@@ -173,6 +181,13 @@ export async function registerRoutes(
         hasBranch,
         notHasBranch,
         minAge,
+        hasBranch2,
+        notHasBranch2,
+        policyCountMin,
+        policyCountMax,
+        renewalProduct,
+        vehicleCountMin,
+        vehicleAgeMax,
       });
       
       res.json(result);
@@ -996,11 +1011,27 @@ Kullanıcının kriterleri: ${prompt}
 - customerType: Müşteri tipi ("bireysel" veya "kurumsal")
 - hasBranch: Bu ürüne sahip müşteriler (örn: "Oto Kaza (Kasko)")
 - notHasBranch: Bu ürüne sahip OLMAYAN müşteriler (örn: "Oto Kaza (Trafik)")
-- minAge: Minimum yaş (sayı, örn: 25)
+- hasBranch2: İkinci ürüne sahip müşteriler - çoklu ürün sorguları için (örn: Trafik + Konut)
+- notHasBranch2: İkinci ürüne sahip OLMAYAN müşteriler
+- minAge: Minimum müşteri yaşı (sayı, örn: 25)
+- policyCountMin: Minimum poliçe sayısı (tek poliçeli için 1, sadık müşteriler için 3)
+- policyCountMax: Maximum poliçe sayısı (tek poliçeli için 1, iki poliçeli için 2)
+- renewalProduct: Yenileme yaklaşan ürün (örn: "Oto Kaza (Kasko)" - varsayılan 30 gün)
+- vehicleCountMin: Minimum araç sayısı (birden fazla araç için 2)
+- vehicleAgeMax: Maximum araç yaşı (0-5 yaş arası için 5, 0-10 yaş arası için 10)
+
+ÖRNEK SEGMENTLER:
+- Trafiği Var Kaskosu Yok: hasBranch="Oto Kaza (Trafik)", notHasBranch="Oto Kaza (Kasko)"
+- Trafiği Var Kaskosu Yok (0-10 Yaş Araç): hasBranch="Oto Kaza (Trafik)", notHasBranch="Oto Kaza (Kasko)", vehicleAgeMax=10
+- Tek Poliçeli Müşteriler: policyCountMin=1, policyCountMax=1
+- Üç ve Üzeri Poliçeli Müşteriler: policyCountMin=3
+- Trafik + Konut Olanlar: hasBranch="Oto Kaza (Trafik)", hasBranch2="Yangın (Konut)"
+- Birden Fazla Aracı Olan Müşteriler: vehicleCountMin=2
+- Kasko Yenilemeye Yakın: renewalProduct="Oto Kaza (Kasko)"
 
 Bu kriterlere göre bir segment analizi oluştur. Şu JSON formatında döndür:
 {
-  "title": "Segment adı - Türkçe ve açıklayıcı olmalı. Örnek formatlar: 'Kasko Sigortası Olan, Trafik Sigortası Olmayan Müşteriler', 'İstanbul Bireysel Sağlık Müşterileri', '40 Yaş Üstü DASK Müşterileri'",
+  "title": "Segment adı - Türkçe ve açıklayıcı olmalı",
   "insight": "Segment özellikleri, davranış kalıpları ve pazarlama önerileri (detaylı)",
   "confidence": 85,
   "metadata": { 
@@ -1008,17 +1039,14 @@ Bu kriterlere göre bir segment analizi oluştur. Şu JSON formatında döndür:
     "avgPremium": 5000 
   },
   "filters": {
-    "city": "İSTANBUL",
-    "branch": "Sağlık",
-    "customerType": "bireysel",
-    "hasBranch": "Oto Kaza (Kasko)",
-    "notHasBranch": "Oto Kaza (Trafik)",
-    "minAge": 40
+    "hasBranch": "Oto Kaza (Trafik)",
+    "notHasBranch": "Oto Kaza (Kasko)",
+    "vehicleAgeMax": 10
   }
 }
 
 NOT: "filters" objesinde SADECE kullanıcının isteğine uygun filtreleri dahil et, gereksiz olanları ekleme.
-Segment başlığı Türkçe olmalı ve filtreleri yansıtmalı (örn: "X Olan", "Y Olmayan", "Z Yaş Üstü" gibi kalıplar kullan).
+Segment başlığı Türkçe olmalı ve filtreleri yansıtmalı.
 
 Sadece JSON objesi döndür, başka metin ekleme.`;
 

@@ -58,6 +58,14 @@ export function buildCustomerFilterUrl(filters: {
   notHasBranch?: string;
   minAge?: number;
   page?: number;
+  // Advanced filter parameters for management reports
+  hasBranch2?: string;
+  notHasBranch2?: string;
+  policyCountMin?: number;
+  policyCountMax?: number;
+  renewalProduct?: string;
+  vehicleCountMin?: number;
+  vehicleAgeMax?: number;
 }): string {
   const params = new URLSearchParams();
   
@@ -76,6 +84,14 @@ export function buildCustomerFilterUrl(filters: {
   if (filters.notHasBranch) params.set("notHasBranch", filters.notHasBranch);
   if (filters.minAge) params.set("minAge", filters.minAge.toString());
   if (filters.page && filters.page > 1) params.set("page", filters.page.toString());
+  // Advanced filters
+  if (filters.hasBranch2) params.set("hasBranch2", filters.hasBranch2);
+  if (filters.notHasBranch2) params.set("notHasBranch2", filters.notHasBranch2);
+  if (filters.policyCountMin !== undefined) params.set("policyCountMin", filters.policyCountMin.toString());
+  if (filters.policyCountMax !== undefined) params.set("policyCountMax", filters.policyCountMax.toString());
+  if (filters.renewalProduct) params.set("renewalProduct", filters.renewalProduct);
+  if (filters.vehicleCountMin !== undefined) params.set("vehicleCountMin", filters.vehicleCountMin.toString());
+  if (filters.vehicleAgeMax !== undefined) params.set("vehicleAgeMax", filters.vehicleAgeMax.toString());
   
   const queryString = params.toString();
   return queryString ? `/customers?${queryString}` : "/customers";

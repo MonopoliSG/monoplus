@@ -93,6 +93,14 @@ export interface IStorage {
     hasBranch?: string;
     notHasBranch?: string;
     minAge?: number;
+    // Advanced filtering for management reports
+    hasBranch2?: string;
+    notHasBranch2?: string;
+    policyCountMin?: number;
+    policyCountMax?: number;
+    renewalProduct?: string;
+    vehicleCountMin?: number;
+    vehicleAgeMax?: number;
   }): Promise<{ customers: Customer[]; total: number; page: number; totalPages: number }>;
 }
 
@@ -385,11 +393,19 @@ export class DatabaseStorage implements IStorage {
     hasBranch?: string;
     notHasBranch?: string;
     minAge?: number;
+    hasBranch2?: string;
+    notHasBranch2?: string;
+    policyCountMin?: number;
+    policyCountMax?: number;
+    renewalProduct?: string;
+    vehicleCountMin?: number;
+    vehicleAgeMax?: number;
   }): Promise<{ customers: Customer[]; total: number; page: number; totalPages: number }> {
     const conditions = [];
     
     // Renewal filter - policies expiring within X days (null-safe, timezone-aware)
-    if (filters.renewalDays) {
+    // Skip if renewalProduct is set (product-specific renewal takes precedence)
+    if (filters.renewalDays && !filters.renewalProduct) {
       conditions.push(
         and(
           sql`${customers.bitisTarihi} IS NOT NULL`,
@@ -549,6 +565,74 @@ export class DatabaseStorage implements IStorage {
       conditions.push(
         sql`${customers.dogumTarihi} IS NOT NULL AND 
             date_part('year', age(CURRENT_DATE, ${customers.dogumTarihi}::date)) >= ${filters.minAge}`
+      );
+    }
+    
+    // Second has branch filter for multi-product queries (e.g., Trafik + Konut)
+    if (filters.hasBranch2) {
+      conditions.push(
+        sql`${customers.tcKimlikNo} IS NOT NULL AND ${customers.tcKimlikNo} IN (
+          SELECT tc_kimlik_no FROM customers 
+          WHERE ana_brans ILIKE ${`%${filters.hasBranch2}%`} AND tc_kimlik_no IS NOT NULL
+        )`
+      );
+    }
+    
+    // Second not has branch filter for multi-product exclusion
+    if (filters.notHasBranch2) {
+      conditions.push(
+        sql`${customers.tcKimlikNo} IS NOT NULL AND NOT EXISTS (
+          SELECT 1 FROM customers c2 
+          WHERE c2.tc_kimlik_no = ${customers.tcKimlikNo}
+          AND c2.ana_brans ILIKE ${`%${filters.notHasBranch2}%`}
+        )`
+      );
+    }
+    
+    // Policy count filter - filter customers by number of policies they have
+    if (filters.policyCountMin !== undefined || filters.policyCountMax !== undefined) {
+      const minCount = filters.policyCountMin || 0;
+      const maxCount = filters.policyCountMax || 999999;
+      conditions.push(
+        sql`${customers.tcKimlikNo} IS NOT NULL AND ${customers.tcKimlikNo} IN (
+          SELECT tc_kimlik_no FROM customers 
+          WHERE tc_kimlik_no IS NOT NULL
+          GROUP BY tc_kimlik_no 
+          HAVING COUNT(DISTINCT police_numarasi) >= ${minCount} 
+             AND COUNT(DISTINCT police_numarasi) <= ${maxCount}
+        )`
+      );
+    }
+    
+    // Product-specific renewal filter - policies of specific branch expiring within X days
+    if (filters.renewalProduct) {
+      const renewalDays = filters.renewalDays || 30;
+      conditions.push(
+        sql`${customers.anaBrans} ILIKE ${`%${filters.renewalProduct}%`}
+            AND ${customers.bitisTarihi} IS NOT NULL
+            AND ${customers.bitisTarihi}::date >= CURRENT_DATE
+            AND ${customers.bitisTarihi}::date <= CURRENT_DATE + ${renewalDays}::integer`
+      );
+    }
+    
+    // Vehicle count filter - customers with multiple vehicles (by distinct plate count)
+    if (filters.vehicleCountMin !== undefined && filters.vehicleCountMin > 1) {
+      conditions.push(
+        sql`${customers.tcKimlikNo} IS NOT NULL AND ${customers.tcKimlikNo} IN (
+          SELECT tc_kimlik_no FROM customers 
+          WHERE tc_kimlik_no IS NOT NULL AND arac_plakasi IS NOT NULL AND arac_plakasi != ''
+          GROUP BY tc_kimlik_no 
+          HAVING COUNT(DISTINCT arac_plakasi) >= ${filters.vehicleCountMin}
+        )`
+      );
+    }
+    
+    // Vehicle age filter - customers with vehicles newer than X years (based on model_yili)
+    if (filters.vehicleAgeMax !== undefined) {
+      const currentYear = new Date().getFullYear();
+      const minModelYear = currentYear - filters.vehicleAgeMax;
+      conditions.push(
+        sql`${customers.modelYili} IS NOT NULL AND ${customers.modelYili} >= ${minModelYear}`
       );
     }
 

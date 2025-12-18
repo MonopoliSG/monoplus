@@ -75,6 +75,14 @@ interface SegmentMetadata {
     hasBranch?: string;
     notHasBranch?: string;
     minAge?: number;
+    // Advanced filters for management reports
+    hasBranch2?: string;
+    notHasBranch2?: string;
+    policyCountMin?: number;
+    policyCountMax?: number;
+    renewalProduct?: string;
+    vehicleCountMin?: number;
+    vehicleAgeMax?: number;
   };
 }
 
@@ -93,6 +101,14 @@ function buildSegmentFilterUrl(segmentTitle: string, metadata?: SegmentMetadata)
     if (f.hasBranch) filters.hasBranch = f.hasBranch;
     if (f.notHasBranch) filters.notHasBranch = f.notHasBranch;
     if (f.minAge) filters.minAge = f.minAge;
+    // Advanced filters from AI
+    if (f.hasBranch2) filters.hasBranch2 = f.hasBranch2;
+    if (f.notHasBranch2) filters.notHasBranch2 = f.notHasBranch2;
+    if (f.policyCountMin !== undefined) filters.policyCountMin = f.policyCountMin;
+    if (f.policyCountMax !== undefined) filters.policyCountMax = f.policyCountMax;
+    if (f.renewalProduct) filters.renewalProduct = f.renewalProduct;
+    if (f.vehicleCountMin !== undefined) filters.vehicleCountMin = f.vehicleCountMin;
+    if (f.vehicleAgeMax !== undefined) filters.vehicleAgeMax = f.vehicleAgeMax;
     
     // If we have filters from metadata, use them directly
     if (Object.keys(filters).length > 0) {
