@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -75,8 +75,8 @@ export function buildCustomerFilterUrl(filters: {
   return queryString ? `/customers?${queryString}` : "/customers";
 }
 
-// Parse filters from URL
-function parseFiltersFromUrl(location: string): {
+// Parse filters from search string
+function parseFiltersFromSearch(searchString: string): {
   search: string;
   city: string;
   branch: string;
@@ -90,7 +90,7 @@ function parseFiltersFromUrl(location: string): {
   customerType: string;
   page: number;
 } {
-  const searchParams = new URLSearchParams(location.split("?")[1] || "");
+  const searchParams = new URLSearchParams(searchString);
   return {
     search: searchParams.get("search") || "",
     city: searchParams.get("city") || "",
@@ -108,8 +108,9 @@ function parseFiltersFromUrl(location: string): {
 }
 
 export default function Customers() {
-  const [location, navigate] = useLocation();
-  const filters = useMemo(() => parseFiltersFromUrl(location), [location]);
+  const [, navigate] = useLocation();
+  const searchString = useSearch();
+  const filters = useMemo(() => parseFiltersFromSearch(searchString), [searchString]);
   
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -124,9 +125,9 @@ export default function Customers() {
     setLocalSearch(filters.search);
   }, [filters.search]);
 
-  // Update URL with new filters - use location directly to avoid stale closure
+  // Update URL with new filters - use searchString directly to avoid stale closure
   const updateFilters = useCallback((newFilters: Record<string, string | number | undefined>) => {
-    const currentFilters = parseFiltersFromUrl(location);
+    const currentFilters = parseFiltersFromSearch(searchString);
     const merged = { ...currentFilters, ...newFilters };
     // Reset page to 1 when filters change (except when explicitly setting page)
     if (!('page' in newFilters)) {
@@ -147,7 +148,7 @@ export default function Customers() {
       page: merged.page as number,
     });
     navigate(url, { replace: true });
-  }, [location, navigate]);
+  }, [searchString, navigate]);
 
   // Debounced search update
   useEffect(() => {
