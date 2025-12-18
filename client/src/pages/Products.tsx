@@ -1,8 +1,18 @@
-import { useState } from "react";
-import { ProductCard, type InsuranceProduct } from "@/components/ProductCard";
-import { ProductFormDialog } from "@/components/ProductFormDialog";
+import { useState, useMemo } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -10,125 +20,168 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, Package, Edit2, Trash2, Users } from "lucide-react";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { isUnauthorizedError } from "@/lib/authUtils";
+import type { Product } from "@shared/schema";
 
-// todo: remove mock functionality
-const mockProducts: InsuranceProduct[] = [
-  {
-    id: "1",
-    name: "Kasko Plus",
-    category: "Araç Sigortası",
-    description: "Tam kapsamlı araç sigortası. Kaza, hırsızlık, doğal afet ve cam kırılması dahil tüm riskleri kapsar.",
-    targetAudience: "Tüm araç sahipleri",
-    customerCount: 523,
-  },
-  {
-    id: "2",
-    name: "Trafik Sigortası",
-    category: "Araç Sigortası",
-    description: "Zorunlu trafik sigortası. Yasal gereklilik olarak tüm motorlu araç sahipleri için.",
-    targetAudience: "Zorunlu - tüm araç sahipleri",
-    customerCount: 892,
-  },
-  {
-    id: "3",
-    name: "Özel Sağlık Premium",
-    category: "Sağlık Sigortası",
-    description: "Yatarak ve ayakta tedavi, check-up, diş ve göz kapsam seçenekleri ile kapsamlı sağlık güvencesi.",
-    targetAudience: "35-55 yaş arası profesyoneller",
-    customerCount: 312,
-  },
-  {
-    id: "4",
-    name: "Tamamlayıcı Sağlık",
-    category: "Sağlık Sigortası",
-    description: "SGK'yı tamamlayan özel sağlık sigortası. Devlet hastanelerinde fark ücretini karşılar.",
-    targetAudience: "SGK'lı çalışanlar",
-    customerCount: 445,
-  },
-  {
-    id: "5",
-    name: "Konut Güvence",
-    category: "Konut Sigortası",
-    description: "Yangın, hırsızlık, deprem ve doğal afetlere karşı kapsamlı ev sigortası.",
-    targetAudience: "Ev sahipleri ve kiracılar",
-    customerCount: 267,
-  },
-  {
-    id: "6",
-    name: "Bireysel Emeklilik",
-    category: "Hayat Sigortası",
-    description: "Devlet katkısı ile geleceğinizi güvence altına alın. Esnek ödeme seçenekleri.",
-    targetAudience: "25-45 yaş çalışanlar",
-    customerCount: 189,
-  },
+const categories = [
+  "Kasko",
+  "Trafik",
+  "Sağlık",
+  "Konut",
+  "Hayat",
+  "DASK",
+  "Ferdi Kaza",
+  "İşyeri",
+  "Nakliyat",
+  "Mühendislik",
 ];
-
-const categories = ["Tümü", "Araç Sigortası", "Sağlık Sigortası", "Konut Sigortası", "Hayat Sigortası"];
 
 export default function Products() {
   const { toast } = useToast();
-  const [products, setProducts] = useState(mockProducts);
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("Tümü");
+  const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<InsuranceProduct | null>(null);
-
-  const filteredProducts = products.filter((product) => {
-    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === "Tümü" || product.category === selectedCategory;
-    return matchesSearch && matchesCategory;
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [formData, setFormData] = useState({
+    name: "",
+    category: "",
+    description: "",
+    targetAudience: "",
   });
 
-  const handleEdit = (product: InsuranceProduct) => {
-    setEditingProduct(product);
-    setDialogOpen(true);
-  };
+  const { data: products = [], isLoading } = useQuery<Product[]>({
+    queryKey: ["/api/products"],
+  });
 
-  const handleDelete = (product: InsuranceProduct) => {
-    setProducts(products.filter((p) => p.id !== product.id));
-    toast({
-      title: "Ürün silindi",
-      description: `${product.name} başarıyla silindi.`,
-    });
-  };
+  const createMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return await apiRequest("POST", "/api/products", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+      toast({ title: "Ürün oluşturuldu" });
+      setDialogOpen(false);
+      resetForm();
+    },
+    onError: (error: Error) => {
+      if (isUnauthorizedError(error)) {
+        toast({ title: "Oturum sonlandı", variant: "destructive" });
+        setTimeout(() => { window.location.href = "/api/login"; }, 500);
+        return;
+      }
+      toast({ title: "Hata", description: "Ürün oluşturulamadı", variant: "destructive" });
+    },
+  });
 
-  const handleSave = (data: Partial<InsuranceProduct>) => {
-    if (editingProduct) {
-      setProducts(products.map((p) =>
-        p.id === editingProduct.id ? { ...p, ...data } : p
-      ));
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      return await apiRequest("PATCH", `/api/products/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
       toast({ title: "Ürün güncellendi" });
-    } else {
-      const newProduct: InsuranceProduct = {
-        id: Date.now().toString(),
-        name: data.name || "",
-        category: data.category || "",
-        description: data.description || "",
-        targetAudience: data.targetAudience,
-        customerCount: 0,
-      };
-      setProducts([...products, newProduct]);
-      toast({ title: "Yeni ürün eklendi" });
-    }
+      setDialogOpen(false);
+      resetForm();
+    },
+    onError: (error: Error) => {
+      if (isUnauthorizedError(error)) {
+        toast({ title: "Oturum sonlandı", variant: "destructive" });
+        setTimeout(() => { window.location.href = "/api/login"; }, 500);
+        return;
+      }
+      toast({ title: "Hata", description: "Ürün güncellenemedi", variant: "destructive" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return await apiRequest("DELETE", `/api/products/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+      toast({ title: "Ürün silindi" });
+    },
+    onError: (error: Error) => {
+      if (isUnauthorizedError(error)) {
+        toast({ title: "Oturum sonlandı", variant: "destructive" });
+        setTimeout(() => { window.location.href = "/api/login"; }, 500);
+        return;
+      }
+      toast({ title: "Hata", description: "Ürün silinemedi", variant: "destructive" });
+    },
+  });
+
+  const resetForm = () => {
+    setFormData({
+      name: "",
+      category: "",
+      description: "",
+      targetAudience: "",
+    });
     setEditingProduct(null);
   };
 
-  const openNewProductDialog = () => {
-    setEditingProduct(null);
+  const openCreateDialog = () => {
+    resetForm();
     setDialogOpen(true);
   };
+
+  const openEditDialog = (product: Product) => {
+    setEditingProduct(product);
+    setFormData({
+      name: product.name,
+      category: product.category || "",
+      description: product.description || "",
+      targetAudience: product.targetAudience || "",
+    });
+    setDialogOpen(true);
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editingProduct) {
+      updateMutation.mutate({ id: editingProduct.id, data: formData });
+    } else {
+      createMutation.mutate(formData);
+    }
+  };
+
+  const filteredProducts = useMemo(() => {
+    return products.filter((product) => {
+      const matchesSearch = !searchTerm ||
+        product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        product.description?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesCategory = !selectedCategory || product.category === selectedCategory;
+      return matchesSearch && matchesCategory;
+    });
+  }, [products, searchTerm, selectedCategory]);
+
+  if (isLoading) {
+    return (
+      <div className="p-6">
+        <div className="animate-pulse space-y-4">
+          <div className="h-8 bg-muted rounded w-48" />
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div key={i} className="h-48 bg-muted rounded" />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-semibold" data-testid="text-page-title">Sigorta Ürünleri</h1>
-          <p className="text-muted-foreground">Ürün kataloğunu yönetin ve düzenleyin</p>
+          <h1 className="text-2xl font-semibold" data-testid="text-page-title">Ürünler</h1>
+          <p className="text-muted-foreground">{filteredProducts.length} sigorta ürünü</p>
         </div>
-        <Button onClick={openNewProductDialog} data-testid="button-add-product">
+        <Button onClick={openCreateDialog} data-testid="button-add-product">
           <Plus className="h-4 w-4 mr-2" />
           Yeni Ürün
         </Button>
@@ -136,52 +189,154 @@ export default function Products() {
 
       <div className="flex items-center gap-4 flex-wrap">
         <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Ürün ara..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9"
-            data-testid="input-search-products"
+            className="pl-10"
+            data-testid="input-search-product"
           />
         </div>
         <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-          <SelectTrigger className="w-48" data-testid="select-category-filter">
+          <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="Kategori" />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="">Tümü</SelectItem>
             {categories.map((cat) => (
-              <SelectItem key={cat} value={cat}>
-                {cat}
-              </SelectItem>
+              <SelectItem key={cat} value={cat}>{cat}</SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {filteredProducts.map((product) => (
-          <ProductCard
-            key={product.id}
-            product={product}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-          />
-        ))}
-      </div>
-
-      {filteredProducts.length === 0 && (
-        <div className="text-center py-12 text-muted-foreground">
-          <p>Arama kriterlerine uygun ürün bulunamadı.</p>
+      {products.length === 0 ? (
+        <Card className="p-12 text-center">
+          <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+          <h3 className="text-lg font-medium mb-2">Henüz ürün yok</h3>
+          <p className="text-muted-foreground mb-4">
+            Sigorta ürünlerinizi ekleyerek başlayın.
+          </p>
+          <Button onClick={openCreateDialog}>
+            <Plus className="h-4 w-4 mr-2" />
+            İlk Ürünü Ekle
+          </Button>
+        </Card>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {filteredProducts.map((product) => (
+            <Card key={product.id} data-testid={`card-product-${product.id}`}>
+              <CardHeader className="pb-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <CardTitle className="text-base">{product.name}</CardTitle>
+                    {product.category && (
+                      <Badge variant="secondary" className="mt-1">{product.category}</Badge>
+                    )}
+                  </div>
+                  <div className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => openEditDialog(product)}
+                      data-testid={`button-edit-${product.id}`}
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => deleteMutation.mutate(product.id)}
+                      data-testid={`button-delete-${product.id}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {product.description && (
+                  <p className="text-sm text-muted-foreground line-clamp-2">{product.description}</p>
+                )}
+                {product.targetAudience && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <Users className="h-4 w-4 text-muted-foreground" />
+                    <span>{product.targetAudience}</span>
+                  </div>
+                )}
+              </CardContent>
+              <CardFooter className="pt-0">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Package className="h-4 w-4" />
+                  <span>{product.isActive ? "Aktif" : "Pasif"}</span>
+                </div>
+              </CardFooter>
+            </Card>
+          ))}
         </div>
       )}
 
-      <ProductFormDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        product={editingProduct}
-        onSave={handleSave}
-      />
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editingProduct ? "Ürünü Düzenle" : "Yeni Ürün Ekle"}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Ürün Adı</Label>
+              <Input
+                id="name"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="category">Kategori</Label>
+              <Select
+                value={formData.category}
+                onValueChange={(value) => setFormData({ ...formData, category: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Kategori seçin" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map((cat) => (
+                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="description">Açıklama</Label>
+              <Textarea
+                id="description"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                rows={3}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="targetAudience">Hedef Kitle</Label>
+              <Input
+                id="targetAudience"
+                value={formData.targetAudience}
+                onChange={(e) => setFormData({ ...formData, targetAudience: e.target.value })}
+                placeholder="Örn: 25-45 yaş arası araç sahipleri"
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+                İptal
+              </Button>
+              <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
+                {editingProduct ? "Güncelle" : "Oluştur"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
