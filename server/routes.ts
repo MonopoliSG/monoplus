@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAdminAuth, isAuthenticated } from "./adminAuth";
-import { insertCustomerSchema, insertProductSchema, insertSegmentSchema, insertCampaignSchema, csvColumnMapping, type InsertCustomer, type InsertAiCustomerPrediction } from "@shared/schema";
+import { insertCustomerSchema, insertProductSchema, insertSegmentSchema, insertCampaignSchema, csvColumnMapping, type InsertCustomer, type InsertAiCustomerPrediction, type InsertAiAnalysis } from "@shared/schema";
 import OpenAI from "openai";
 import ExcelJS from "exceljs";
 
@@ -124,6 +124,32 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching customers:", error);
       res.status(500).json({ message: "Failed to fetch customers" });
+    }
+  });
+
+  // Paginated customers endpoint - must be before /:id route
+  app.get("/api/customers/paginated", isAuthenticated, async (req, res) => {
+    try {
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 50;
+      const search = req.query.search as string;
+      const city = req.query.city as string;
+      const branch = req.query.branch as string;
+      const segment = req.query.segment as string;
+
+      const result = await storage.getCustomersPaginated({
+        page,
+        limit,
+        search,
+        city,
+        branch,
+        segment,
+      });
+      
+      res.json(result);
+    } catch (error) {
+      console.error("Error getting paginated customers:", error);
+      res.status(500).json({ message: "Müşteriler yüklenemedi" });
     }
   });
 
@@ -838,32 +864,6 @@ Sadece JSON objesi döndür, başka metin ekleme.`;
     } catch (error) {
       console.error("Error creating custom segment:", error);
       res.status(500).json({ message: "Özel segment oluşturulamadı" });
-    }
-  });
-
-  // Paginated customers endpoint
-  app.get("/api/customers/paginated", isAuthenticated, async (req, res) => {
-    try {
-      const page = parseInt(req.query.page as string) || 1;
-      const limit = parseInt(req.query.limit as string) || 50;
-      const search = req.query.search as string;
-      const city = req.query.city as string;
-      const branch = req.query.branch as string;
-      const segment = req.query.segment as string;
-
-      const result = await storage.getCustomersPaginated({
-        page,
-        limit,
-        search,
-        city,
-        branch,
-        segment,
-      });
-      
-      res.json(result);
-    } catch (error) {
-      console.error("Error getting paginated customers:", error);
-      res.status(500).json({ message: "Müşteriler yüklenemedi" });
     }
   });
 
