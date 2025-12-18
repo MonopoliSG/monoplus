@@ -60,10 +60,19 @@ function parseCustomerFromCsv(csvRow: Record<string, string>): Partial<InsertCus
   return customer as Partial<InsertCustomer>;
 }
 
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-});
+// OpenAI client - supports both Replit AI Integrations and standard API key
+const openaiApiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+const openaiBaseUrl = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
+
+let openai: OpenAI | null = null;
+if (openaiApiKey) {
+  openai = new OpenAI({
+    apiKey: openaiApiKey,
+    ...(openaiBaseUrl ? { baseURL: openaiBaseUrl } : {}),
+  });
+} else {
+  console.warn("WARNING: No OpenAI API key found. AI features will be disabled.");
+}
 
 export async function registerRoutes(
   httpServer: Server,
@@ -318,6 +327,10 @@ Segmentler şunları içerebilir:
 
 Sadece JSON array döndür, başka açıklama ekleme.`;
 
+      if (!openai) {
+        return res.status(503).json({ message: "AI ozellikleri aktif degil. OPENAI_API_KEY gerekli." });
+      }
+
       const response = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: [{ role: "user", content: prompt }],
@@ -438,6 +451,10 @@ Sadece JSON array döndür, başka açıklama ekleme.`;
 
       await storage.deleteAiAnalysesByType(type);
 
+      if (!openai) {
+        return res.status(503).json({ message: "AI ozellikleri aktif degil. OPENAI_API_KEY gerekli." });
+      }
+
       const prompt = getAnalysisPrompt(type, customers);
 
       const response = await openai.chat.completions.create({
@@ -505,6 +522,10 @@ Lütfen şu formatta 3-5 tavsiye ver:
 ]
 
 Sadece JSON array döndür.`;
+
+      if (!openai) {
+        return res.status(503).json({ message: "AI ozellikleri aktif degil. OPENAI_API_KEY gerekli." });
+      }
 
       const response = await openai.chat.completions.create({
         model: "gpt-4o",
