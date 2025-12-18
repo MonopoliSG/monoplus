@@ -635,25 +635,34 @@ Sadece JSON array döndür.`;
       });
 
       const content = response.choices[0]?.message?.content || "[]";
+      console.log("AI Response content length:", content.length);
       let predictions: InsertAiCustomerPrediction[] = [];
 
       try {
         const jsonMatch = content.match(/\[[\s\S]*\]/);
         if (jsonMatch) {
           const rawPredictions = JSON.parse(jsonMatch[0]);
+          console.log("Parsed predictions count:", rawPredictions.length);
+          if (rawPredictions.length > 0) {
+            console.log("First prediction sample:", JSON.stringify(rawPredictions[0]));
+          }
           predictions = rawPredictions.map((p: any) => ({
             analysisType: type,
-            customerId: p.customerId || "",
-            customerName: p.customerName || "",
-            currentProduct: p.currentProduct || "",
+            customerId: p.customerId || p.id || "",
+            customerName: p.customerName || p.name || "",
+            currentProduct: p.currentProduct || p.product || "",
             suggestedProduct: p.suggestedProduct || null,
             probability: Math.min(100, Math.max(0, parseInt(p.probability) || 50)),
             reason: p.reason || "",
             city: p.city || null,
           })).filter((p: any) => p.customerId && p.customerName);
+          console.log("Filtered predictions count:", predictions.length);
+        } else {
+          console.log("No JSON array found in AI response");
         }
       } catch (parseError) {
         console.error("Error parsing AI response:", parseError);
+        console.log("Raw AI response:", content.substring(0, 500));
       }
 
       if (predictions.length > 0) {
