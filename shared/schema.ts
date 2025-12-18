@@ -74,8 +74,8 @@ export const customers = pgTable("customers", {
   net: decimal("net", { precision: 15, scale: 2 }),
   komisyon: decimal("komisyon", { precision: 15, scale: 2 }),
   taliKomisyonu: decimal("tali_komisyonu", { precision: 15, scale: 2 }),
-  acenteKomisyonuYuzde: decimal("acente_komisyonu_yuzde", { precision: 5, scale: 2 }),
-  taliKomisyonuYuzde: decimal("tali_komisyonu_yuzde", { precision: 5, scale: 2 }),
+  acenteKomisyonuYuzde: decimal("acente_komisyonu_yuzde", { precision: 15, scale: 2 }),
+  taliKomisyonuYuzde: decimal("tali_komisyonu_yuzde", { precision: 15, scale: 2 }),
   
   // Temsilci Bilgileri
   temsilciAdi: varchar("temsilci_adi"),
@@ -335,6 +335,27 @@ export const insertAiAnalysisSchema = createInsertSchema(aiAnalyses).omit({
 });
 export type InsertAiAnalysis = z.infer<typeof insertAiAnalysisSchema>;
 export type AiAnalysis = typeof aiAnalyses.$inferSelect;
+
+export const aiCustomerPredictions = pgTable("ai_customer_predictions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  analysisType: varchar("analysis_type").notNull(),
+  customerId: varchar("customer_id").notNull(),
+  customerName: varchar("customer_name"),
+  currentProduct: varchar("current_product"),
+  suggestedProduct: varchar("suggested_product"),
+  probability: integer("probability").notNull(),
+  reason: text("reason"),
+  city: varchar("city"),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertAiCustomerPredictionSchema = createInsertSchema(aiCustomerPredictions).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertAiCustomerPrediction = z.infer<typeof insertAiCustomerPredictionSchema>;
+export type AiCustomerPrediction = typeof aiCustomerPredictions.$inferSelect;
 
 // Column mapping for CSV import - maps Turkish CSV headers to database field names
 export const csvColumnMapping: Record<string, keyof InsertCustomer> = {
