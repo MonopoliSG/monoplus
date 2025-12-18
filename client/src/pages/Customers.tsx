@@ -54,6 +54,9 @@ export function buildCustomerFilterUrl(filters: {
   dateFrom?: string;
   dateTo?: string;
   customerType?: string;
+  hasBranch?: string;
+  notHasBranch?: string;
+  minAge?: number;
   page?: number;
 }): string {
   const params = new URLSearchParams();
@@ -69,6 +72,9 @@ export function buildCustomerFilterUrl(filters: {
   if (filters.dateFrom) params.set("dateFrom", filters.dateFrom);
   if (filters.dateTo) params.set("dateTo", filters.dateTo);
   if (filters.customerType) params.set("customerType", filters.customerType);
+  if (filters.hasBranch) params.set("hasBranch", filters.hasBranch);
+  if (filters.notHasBranch) params.set("notHasBranch", filters.notHasBranch);
+  if (filters.minAge) params.set("minAge", filters.minAge.toString());
   if (filters.page && filters.page > 1) params.set("page", filters.page.toString());
   
   const queryString = params.toString();
@@ -88,6 +94,9 @@ function parseFiltersFromSearch(searchString: string): {
   dateFrom: string;
   dateTo: string;
   customerType: string;
+  hasBranch: string;
+  notHasBranch: string;
+  minAge: string;
   page: number;
 } {
   const searchParams = new URLSearchParams(searchString);
@@ -103,6 +112,9 @@ function parseFiltersFromSearch(searchString: string): {
     dateFrom: searchParams.get("dateFrom") || "",
     dateTo: searchParams.get("dateTo") || "",
     customerType: searchParams.get("customerType") || "",
+    hasBranch: searchParams.get("hasBranch") || "",
+    notHasBranch: searchParams.get("notHasBranch") || "",
+    minAge: searchParams.get("minAge") || "",
     page: parseInt(searchParams.get("page") || "1") || 1,
   };
 }
@@ -145,6 +157,9 @@ export default function Customers() {
       dateFrom: merged.dateFrom || undefined,
       dateTo: merged.dateTo || undefined,
       customerType: merged.customerType || undefined,
+      hasBranch: merged.hasBranch || undefined,
+      notHasBranch: merged.notHasBranch || undefined,
+      minAge: merged.minAge ? parseInt(String(merged.minAge)) : undefined,
       page: merged.page as number,
     });
     navigate(url, { replace: true });
@@ -164,7 +179,8 @@ export default function Customers() {
   const hasActiveFilters = !!(
     filters.search || filters.city || filters.branch || filters.segment ||
     filters.renewalDays || filters.aiPredictionType || filters.aiAnalysisId ||
-    filters.dateType || filters.dateFrom || filters.dateTo || filters.customerType
+    filters.dateType || filters.dateFrom || filters.dateTo || filters.customerType ||
+    filters.hasBranch || filters.notHasBranch || filters.minAge
   );
 
   const { data: paginatedData, isLoading } = useQuery<PaginatedResponse>({
@@ -182,6 +198,9 @@ export default function Customers() {
       filters.dateFrom,
       filters.dateTo,
       filters.customerType,
+      filters.hasBranch,
+      filters.notHasBranch,
+      filters.minAge,
     ],
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -198,6 +217,9 @@ export default function Customers() {
       if (filters.dateFrom) params.set("dateFrom", filters.dateFrom);
       if (filters.dateTo) params.set("dateTo", filters.dateTo);
       if (filters.customerType) params.set("customerType", filters.customerType);
+      if (filters.hasBranch) params.set("hasBranch", filters.hasBranch);
+      if (filters.notHasBranch) params.set("notHasBranch", filters.notHasBranch);
+      if (filters.minAge) params.set("minAge", filters.minAge);
       
       const res = await fetch(`/api/customers/paginated?${params.toString()}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch customers");
@@ -250,6 +272,9 @@ export default function Customers() {
                value === "policeBaslangic" ? "Başlangıç Tarihi" : "Tanzim Tarihi";
       case "dateFrom": return `Tarih: ${value}`;
       case "dateTo": return `- ${value}`;
+      case "hasBranch": return `Ürünü Var: ${value}`;
+      case "notHasBranch": return `Ürünü Yok: ${value}`;
+      case "minAge": return `${value} yaş üstü`;
       default: return value;
     }
   };
@@ -264,6 +289,9 @@ export default function Customers() {
     if (filters.aiPredictionType) badges.push({ key: "aiPredictionType", label: getFilterLabel("aiPredictionType", filters.aiPredictionType) });
     if (filters.aiAnalysisId) badges.push({ key: "aiAnalysisId", label: getFilterLabel("aiAnalysisId", filters.aiAnalysisId) });
     if (filters.customerType) badges.push({ key: "customerType", label: getFilterLabel("customerType", filters.customerType) });
+    if (filters.hasBranch) badges.push({ key: "hasBranch", label: getFilterLabel("hasBranch", filters.hasBranch) });
+    if (filters.notHasBranch) badges.push({ key: "notHasBranch", label: getFilterLabel("notHasBranch", filters.notHasBranch) });
+    if (filters.minAge) badges.push({ key: "minAge", label: getFilterLabel("minAge", filters.minAge) });
     if (filters.dateType && (filters.dateFrom || filters.dateTo)) {
       let dateLabel = getFilterLabel("dateType", filters.dateType);
       if (filters.dateFrom) dateLabel += `: ${filters.dateFrom}`;
@@ -385,6 +413,57 @@ export default function Customers() {
                   </div>
                 </>
               )}
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-4 mt-4 pt-4 border-t">
+              <div className="space-y-2">
+                <Label>Ürünü Olan</Label>
+                <Select
+                  value={filters.hasBranch || "__all__"}
+                  onValueChange={(v) => updateFilters({ hasBranch: v === "__all__" ? "" : v })}
+                >
+                  <SelectTrigger data-testid="select-has-branch">
+                    <SelectValue placeholder="Ürün seçin" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Filtre yok</SelectItem>
+                    {branches.map((branch) => (
+                      <SelectItem key={branch} value={branch!}>{branch}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Ürünü Olmayan</Label>
+                <Select
+                  value={filters.notHasBranch || "__all__"}
+                  onValueChange={(v) => updateFilters({ notHasBranch: v === "__all__" ? "" : v })}
+                >
+                  <SelectTrigger data-testid="select-not-has-branch">
+                    <SelectValue placeholder="Ürün seçin" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Filtre yok</SelectItem>
+                    {branches.map((branch) => (
+                      <SelectItem key={branch} value={branch!}>{branch}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Minimum Yaş</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  max="120"
+                  placeholder="örn: 25"
+                  value={filters.minAge}
+                  onChange={(e) => updateFilters({ minAge: e.target.value || undefined })}
+                  data-testid="input-min-age"
+                />
+              </div>
             </div>
           </div>
         </div>

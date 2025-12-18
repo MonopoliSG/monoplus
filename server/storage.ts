@@ -89,6 +89,9 @@ export interface IStorage {
     dateType?: string;
     dateFrom?: string;
     dateTo?: string;
+    hasBranch?: string;
+    notHasBranch?: string;
+    minAge?: number;
   }): Promise<{ customers: Customer[]; total: number; page: number; totalPages: number }>;
 }
 
@@ -374,6 +377,9 @@ export class DatabaseStorage implements IStorage {
     dateType?: string;
     dateFrom?: string;
     dateTo?: string;
+    hasBranch?: string;
+    notHasBranch?: string;
+    minAge?: number;
   }): Promise<{ customers: Customer[]; total: number; page: number; totalPages: number }> {
     const conditions = [];
     
@@ -508,6 +514,36 @@ export class DatabaseStorage implements IStorage {
       if (segmentConditions.length > 0) {
         conditions.push(or(...segmentConditions));
       }
+    }
+    
+    // Has branch filter - customers who have this product/branch
+    // Uses tcKimlikNo to group policies by customer
+    if (filters.hasBranch) {
+      conditions.push(
+        sql`${customers.tcKimlikNo} IN (
+          SELECT tc_kimlik_no FROM customers 
+          WHERE ana_brans ILIKE ${`%${filters.hasBranch}%`}
+        )`
+      );
+    }
+    
+    // Not has branch filter - customers who do NOT have this product/branch
+    // But still have at least one other policy (excludes customers with this branch)
+    if (filters.notHasBranch) {
+      conditions.push(
+        sql`${customers.tcKimlikNo} NOT IN (
+          SELECT tc_kimlik_no FROM customers 
+          WHERE ana_brans ILIKE ${`%${filters.notHasBranch}%`}
+        )`
+      );
+    }
+    
+    // Age filter - customers older than X years based on dogumTarihi
+    if (filters.minAge) {
+      conditions.push(
+        sql`${customers.dogumTarihi} IS NOT NULL AND 
+            date_part('year', age(CURRENT_DATE, ${customers.dogumTarihi}::date)) >= ${filters.minAge}`
+      );
     }
 
     const offset = (filters.page - 1) * filters.limit;
