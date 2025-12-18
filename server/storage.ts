@@ -22,7 +22,7 @@ import {
   type InsertAiCustomerPrediction,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, sql, and, gte, lte, like, or, inArray } from "drizzle-orm";
+import { eq, sql, and, gte, lte, like, ilike, or, inArray } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -397,9 +397,7 @@ export class DatabaseStorage implements IStorage {
         segmentConditions.push(like(customers.anaBrans, `%Oto%`));
       }
       if (segmentLower.includes("saglik") || segmentLower.includes("sağlık") || segmentLower.includes("saglık")) {
-        segmentConditions.push(like(customers.anaBrans, `%Sağlık%`));
-        segmentConditions.push(like(customers.anaBrans, `%Saglik%`));
-        segmentConditions.push(like(customers.anaBrans, `%Sa?l?k%`));
+        segmentConditions.push(ilike(customers.anaBrans, `%sa%l%k%`));
       }
       if (segmentLower.includes("dask")) {
         segmentConditions.push(like(customers.anaBrans, `%Dask%`));
