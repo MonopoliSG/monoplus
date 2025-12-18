@@ -58,6 +58,12 @@ export default function CustomerProfiles() {
   const [policyType, setPolicyType] = useState(searchParams.get("policyType") || "");
   const [product, setProduct] = useState(searchParams.get("product") || "");
   const [hashtag, setHashtag] = useState(searchParams.get("hashtag") || "");
+  const [hasBranch, setHasBranch] = useState(searchParams.get("hasBranch") || "");
+  const [notHasBranch, setNotHasBranch] = useState(searchParams.get("notHasBranch") || "");
+  const [policyCountMin, setPolicyCountMin] = useState(searchParams.get("policyCountMin") || "");
+  const [policyCountMax, setPolicyCountMax] = useState(searchParams.get("policyCountMax") || "");
+  const [vehicleCountMin, setVehicleCountMin] = useState(searchParams.get("vehicleCountMin") || "");
+  const [vehicleAgeMax, setVehicleAgeMax] = useState(searchParams.get("vehicleAgeMax") || "");
   const [page, setPage] = useState(parseInt(searchParams.get("page") || "1"));
 
   const { data: policyTypes } = useQuery<string[]>({
@@ -65,7 +71,7 @@ export default function CustomerProfiles() {
   });
 
   const { data, isLoading, refetch } = useQuery<PaginatedProfilesResponse>({
-    queryKey: ["/api/customer-profiles", { page, search, city, customerType, policyType, product, hashtag }],
+    queryKey: ["/api/customer-profiles", { page, search, city, customerType, policyType, product, hashtag, hasBranch, notHasBranch, policyCountMin, policyCountMax, vehicleCountMin, vehicleAgeMax }],
     queryFn: async () => {
       const params = new URLSearchParams();
       params.set("page", page.toString());
@@ -76,6 +82,12 @@ export default function CustomerProfiles() {
       if (policyType && policyType !== "all") params.set("policyType", policyType);
       if (product && product !== "all") params.set("product", product);
       if (hashtag) params.set("hashtag", hashtag);
+      if (hasBranch) params.set("hasBranch", hasBranch);
+      if (notHasBranch) params.set("notHasBranch", notHasBranch);
+      if (policyCountMin) params.set("policyCountMin", policyCountMin);
+      if (policyCountMax) params.set("policyCountMax", policyCountMax);
+      if (vehicleCountMin) params.set("vehicleCountMin", vehicleCountMin);
+      if (vehicleAgeMax) params.set("vehicleAgeMax", vehicleAgeMax);
       
       const response = await fetch(`/api/customer-profiles?${params.toString()}`, {
         credentials: "include",
@@ -135,11 +147,17 @@ export default function CustomerProfiles() {
     if (policyType && policyType !== "all") params.set("policyType", policyType);
     if (product && product !== "all") params.set("product", product);
     if (hashtag) params.set("hashtag", hashtag);
+    if (hasBranch) params.set("hasBranch", hasBranch);
+    if (notHasBranch) params.set("notHasBranch", notHasBranch);
+    if (policyCountMin) params.set("policyCountMin", policyCountMin);
+    if (policyCountMax) params.set("policyCountMax", policyCountMax);
+    if (vehicleCountMin) params.set("vehicleCountMin", vehicleCountMin);
+    if (vehicleAgeMax) params.set("vehicleAgeMax", vehicleAgeMax);
     if (page > 1) params.set("page", page.toString());
     
     const newUrl = params.toString() ? `/customer-profiles?${params.toString()}` : "/customer-profiles";
     setLocation(newUrl, { replace: true });
-  }, [search, city, customerType, policyType, product, hashtag, page, setLocation]);
+  }, [search, city, customerType, policyType, product, hashtag, hasBranch, notHasBranch, policyCountMin, policyCountMax, vehicleCountMin, vehicleAgeMax, page, setLocation]);
 
   const handleSearch = () => {
     setPage(1);
@@ -153,11 +171,17 @@ export default function CustomerProfiles() {
     setPolicyType("");
     setProduct("");
     setHashtag("");
+    setHasBranch("");
+    setNotHasBranch("");
+    setPolicyCountMin("");
+    setPolicyCountMax("");
+    setVehicleCountMin("");
+    setVehicleAgeMax("");
     setPage(1);
     setLocation("/customer-profiles");
   };
 
-  const hasActiveFilters = search || city || customerType || policyType || product || hashtag;
+  const hasActiveFilters = search || city || customerType || policyType || product || hashtag || hasBranch || notHasBranch || policyCountMin || policyCountMax || vehicleCountMin || vehicleAgeMax;
 
   const formatCurrency = (value: string | null) => {
     if (!value) return "-";
