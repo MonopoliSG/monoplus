@@ -28,7 +28,7 @@ export default function Landing() {
       const data = await response.json();
 
       if (response.ok) {
-        window.location.href = "/dashboard";
+        window.location.href = "/";
       } else {
         toast({
           title: "Giris Basarisiz",

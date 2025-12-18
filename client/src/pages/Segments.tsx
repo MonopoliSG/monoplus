@@ -24,6 +24,33 @@ interface SegmentWithTotal extends Segment {
   totalCustomers?: number;
 }
 
+function renderFilterCriteria(criteria: unknown): React.ReactNode {
+  if (!criteria || typeof criteria !== 'object' || Array.isArray(criteria)) {
+    return null;
+  }
+  const obj = criteria as Record<string, string>;
+  return Object.keys(obj).map((key) => (
+    <Badge key={key} variant="outline" className="text-xs">
+      {key}: {String(obj[key])}
+    </Badge>
+  ));
+}
+
+function renderBehaviors(behaviors: unknown): React.ReactNode {
+  if (!behaviors || !Array.isArray(behaviors)) {
+    return null;
+  }
+  return (behaviors as Array<{ label: string; percentage: number }>).map((behavior, index) => (
+    <div key={index} className="space-y-1">
+      <div className="flex justify-between text-sm">
+        <span>{behavior.label}</span>
+        <span className="font-medium">{behavior.percentage}%</span>
+      </div>
+      <Progress value={behavior.percentage} className="h-1.5" />
+    </div>
+  ));
+}
+
 export default function Segments() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
@@ -171,9 +198,15 @@ export default function Segments() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="anaBrans">Ana Branş</SelectItem>
+                  <SelectItem value="araBrans">Ara Branş</SelectItem>
                   <SelectItem value="sehir">Şehir</SelectItem>
+                  <SelectItem value="ilce">İlçe</SelectItem>
                   <SelectItem value="meslekGrubu">Meslek Grubu</SelectItem>
                   <SelectItem value="aracMarkasi">Araç Marka</SelectItem>
+                  <SelectItem value="aracModel">Araç Model</SelectItem>
+                  <SelectItem value="yenilemeTarihi">Yenileme Yılı</SelectItem>
+                  <SelectItem value="sigortaSirketi">Sigorta Şirketi</SelectItem>
+                  <SelectItem value="urunAdi">Ürün Adı</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -295,13 +328,7 @@ export default function Segments() {
                       <div className="space-y-2">
                         <p className="text-sm font-medium">Filtre Kriterleri</p>
                         <div className="flex flex-wrap gap-1">
-                          {Object.entries(selectedSegment.filterCriteria as Record<string, any>).map(
-                            ([key, value]) => (
-                              <Badge key={key} variant="outline" className="text-xs">
-                                {key}: {String(value)}
-                              </Badge>
-                            )
-                          )}
+                          {renderFilterCriteria(selectedSegment.filterCriteria)}
                         </div>
                       </div>
                     )}
@@ -309,15 +336,7 @@ export default function Segments() {
                     {selectedSegment.behaviors && Array.isArray(selectedSegment.behaviors) && (
                       <div className="space-y-2">
                         <p className="text-sm font-medium">Davranışlar</p>
-                        {(selectedSegment.behaviors as any[]).map((behavior: any, index: number) => (
-                          <div key={index} className="space-y-1">
-                            <div className="flex justify-between text-sm">
-                              <span>{behavior.label}</span>
-                              <span className="font-medium">{behavior.percentage}%</span>
-                            </div>
-                            <Progress value={behavior.percentage} className="h-1.5" />
-                          </div>
-                        ))}
+                        {renderBehaviors(selectedSegment.behaviors)}
                       </div>
                     )}
                   </CardContent>

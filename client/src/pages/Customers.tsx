@@ -149,13 +149,18 @@ export default function Customers() {
   return (
     <div className="flex h-full">
       {showFilters && (
-        <div className="w-72 border-r bg-muted/30 hidden lg:block">
+        <div className="w-72 border-r bg-muted/30 absolute lg:relative z-10 h-full bg-background lg:bg-muted/30 shadow-lg lg:shadow-none">
           <div className="p-4 space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <h3 className="font-medium">Filtreler</h3>
-              <Button variant="ghost" size="sm" onClick={clearFilters}>
-                Temizle
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button variant="ghost" size="sm" onClick={clearFilters}>
+                  Temizle
+                </Button>
+                <Button variant="ghost" size="icon" onClick={() => setShowFilters(false)} className="lg:hidden">
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
 
             <div className="space-y-3">
@@ -241,7 +246,6 @@ export default function Customers() {
             <Button
               variant={showFilters ? "default" : "outline"}
               onClick={() => setShowFilters(!showFilters)}
-              className="hidden lg:flex"
               data-testid="button-toggle-filters"
             >
               <Filter className="h-4 w-4 mr-2" />
