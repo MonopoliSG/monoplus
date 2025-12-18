@@ -361,6 +361,8 @@ export type AiCustomerPrediction = typeof aiCustomerPredictions.$inferSelect;
 export const csvColumnMapping: Record<string, keyof InsertCustomer> = {
   "Tanzim Tarihi": "tanzimTarihi",
   "Müşteri İsmi (Unvan)": "musteriIsmi",
+  "Ünvan": "musteriIsmi",
+  "Sigorta Ettiren": "musteriIsmi",
   "Hesap Kodu": "hesapKodu",
   "Sigorta Şirketi Adı": "sigortaSirketiAdi",
   "Araç Plakası": "aracPlakasi",
