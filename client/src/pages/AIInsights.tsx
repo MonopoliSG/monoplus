@@ -29,6 +29,7 @@ function buildProfileFilterUrl(filters: {
   policyType?: string;
   product?: string;
   hashtag?: string;
+  hashtags?: string[];
   hasBranch?: string;
   notHasBranch?: string;
   policyCountMin?: number;
@@ -42,7 +43,11 @@ function buildProfileFilterUrl(filters: {
   if (filters.customerType) params.set("customerType", filters.customerType);
   if (filters.policyType) params.set("policyType", filters.policyType);
   if (filters.product) params.set("product", filters.product);
-  if (filters.hashtag) params.set("hashtag", filters.hashtag);
+  if (filters.hashtags && filters.hashtags.length > 0) {
+    params.set("hashtags", filters.hashtags.join(","));
+  } else if (filters.hashtag) {
+    params.set("hashtags", filters.hashtag);
+  }
   if (filters.hasBranch) params.set("hasBranch", filters.hasBranch);
   if (filters.notHasBranch) params.set("notHasBranch", filters.notHasBranch);
   if (filters.policyCountMin !== undefined) params.set("policyCountMin", filters.policyCountMin.toString());
@@ -107,6 +112,7 @@ interface SegmentMetadata {
     hasBranch?: string;
     notHasBranch?: string;
     hashtag?: string;
+    hashtags?: string[];
     minAge?: number;
     // Advanced filters for management reports
     hasBranch2?: string;
@@ -147,6 +153,7 @@ function buildSegmentProfileUrl(segmentTitle: string, metadata?: SegmentMetadata
     hasBranch?: string;
     notHasBranch?: string;
     hashtag?: string;
+    hashtags?: string[];
     policyCountMin?: number;
     policyCountMax?: number;
     vehicleCountMin?: number;
@@ -172,7 +179,11 @@ function buildSegmentProfileUrl(segmentTitle: string, metadata?: SegmentMetadata
     if (f.policyCountMax !== undefined) filters.policyCountMax = f.policyCountMax;
     if (f.vehicleCountMin !== undefined) filters.vehicleCountMin = f.vehicleCountMin;
     if (f.vehicleAgeMax !== undefined) filters.vehicleAgeMax = f.vehicleAgeMax;
-    if (f.hashtag) filters.hashtag = f.hashtag;
+    if (f.hashtags && f.hashtags.length > 0) {
+      filters.hashtags = f.hashtags;
+    } else if (f.hashtag) {
+      filters.hashtags = [f.hashtag];
+    }
   }
   
   // Also check legacy metadata fields

@@ -114,7 +114,7 @@ export interface IStorage {
     city?: string;
     customerType?: string;
     policyType?: string;
-    hashtag?: string;
+    hashtags?: string[];
     product?: string;
     vehicleBrand?: string;
     hasAiAnalysis?: boolean;
@@ -709,7 +709,7 @@ export class DatabaseStorage implements IStorage {
     city?: string;
     customerType?: string;
     policyType?: string;
-    hashtag?: string;
+    hashtags?: string[];
     product?: string;
     vehicleBrand?: string;
     hasAiAnalysis?: boolean;
@@ -743,8 +743,12 @@ export class DatabaseStorage implements IStorage {
       conditions.push(ilike(customerProfiles.musteriTipi, `%${filters.customerType}%`));
     }
     
-    if (filters.hashtag && filters.hashtag !== "all") {
-      conditions.push(ilike(customerProfiles.aiAnaliz, `%${filters.hashtag}%`));
+    if (filters.hashtags && filters.hashtags.length > 0) {
+      for (const hashtag of filters.hashtags) {
+        if (hashtag && hashtag !== "all") {
+          conditions.push(ilike(customerProfiles.aiAnaliz, `%${hashtag}%`));
+        }
+      }
     }
     
     if (filters.product && filters.product !== "all") {

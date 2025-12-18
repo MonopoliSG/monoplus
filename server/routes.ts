@@ -1231,7 +1231,8 @@ Sadece JSON objesi döndür.`;
       const city = req.query.city as string;
       const customerType = req.query.customerType as string;
       const policyType = req.query.policyType as string;
-      const hashtag = req.query.hashtag as string;
+      const hashtagsParam = (req.query.hashtags as string) || (req.query.hashtag as string);
+      const hashtags = hashtagsParam ? hashtagsParam.split(",").map(h => h.trim()).filter(h => h) : undefined;
       const product = req.query.product as string;
       const vehicleBrand = req.query.vehicleBrand as string;
       const hasAiAnalysis = req.query.hasAiAnalysis === "true";
@@ -1254,7 +1255,7 @@ Sadece JSON objesi döndür.`;
         city,
         customerType,
         policyType,
-        hashtag,
+        hashtags,
         product,
         vehicleBrand,
         hasAiAnalysis,

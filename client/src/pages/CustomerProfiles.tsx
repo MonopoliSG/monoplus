@@ -57,7 +57,8 @@ export default function CustomerProfiles() {
   const [customerType, setCustomerType] = useState(searchParams.get("customerType") || "");
   const [policyType, setPolicyType] = useState(searchParams.get("policyType") || "");
   const [product, setProduct] = useState(searchParams.get("product") || "");
-  const [hashtag, setHashtag] = useState(searchParams.get("hashtag") || "");
+  const initialHashtags = searchParams.get("hashtags") || searchParams.get("hashtag") || "";
+  const [hashtags, setHashtags] = useState(initialHashtags);
   const [hasBranch, setHasBranch] = useState(searchParams.get("hasBranch") || "");
   const [notHasBranch, setNotHasBranch] = useState(searchParams.get("notHasBranch") || "");
   const [policyCountMin, setPolicyCountMin] = useState(searchParams.get("policyCountMin") || "");
@@ -71,7 +72,7 @@ export default function CustomerProfiles() {
   });
 
   const { data, isLoading, refetch } = useQuery<PaginatedProfilesResponse>({
-    queryKey: ["/api/customer-profiles", { page, search, city, customerType, policyType, product, hashtag, hasBranch, notHasBranch, policyCountMin, policyCountMax, vehicleCountMin, vehicleAgeMax }],
+    queryKey: ["/api/customer-profiles", { page, search, city, customerType, policyType, product, hashtags, hasBranch, notHasBranch, policyCountMin, policyCountMax, vehicleCountMin, vehicleAgeMax }],
     queryFn: async () => {
       const params = new URLSearchParams();
       params.set("page", page.toString());
@@ -81,7 +82,7 @@ export default function CustomerProfiles() {
       if (customerType && customerType !== "all") params.set("customerType", customerType);
       if (policyType && policyType !== "all") params.set("policyType", policyType);
       if (product && product !== "all") params.set("product", product);
-      if (hashtag) params.set("hashtag", hashtag);
+      if (hashtags) params.set("hashtags", hashtags);
       if (hasBranch) params.set("hasBranch", hasBranch);
       if (notHasBranch) params.set("notHasBranch", notHasBranch);
       if (policyCountMin) params.set("policyCountMin", policyCountMin);
@@ -146,7 +147,7 @@ export default function CustomerProfiles() {
     if (customerType && customerType !== "all") params.set("customerType", customerType);
     if (policyType && policyType !== "all") params.set("policyType", policyType);
     if (product && product !== "all") params.set("product", product);
-    if (hashtag) params.set("hashtag", hashtag);
+    if (hashtags) params.set("hashtags", hashtags);
     if (hasBranch) params.set("hasBranch", hasBranch);
     if (notHasBranch) params.set("notHasBranch", notHasBranch);
     if (policyCountMin) params.set("policyCountMin", policyCountMin);
@@ -157,7 +158,7 @@ export default function CustomerProfiles() {
     
     const newUrl = params.toString() ? `/customer-profiles?${params.toString()}` : "/customer-profiles";
     setLocation(newUrl, { replace: true });
-  }, [search, city, customerType, policyType, product, hashtag, hasBranch, notHasBranch, policyCountMin, policyCountMax, vehicleCountMin, vehicleAgeMax, page, setLocation]);
+  }, [search, city, customerType, policyType, product, hashtags, hasBranch, notHasBranch, policyCountMin, policyCountMax, vehicleCountMin, vehicleAgeMax, page, setLocation]);
 
   const handleSearch = () => {
     setPage(1);
@@ -170,7 +171,7 @@ export default function CustomerProfiles() {
     setCustomerType("");
     setPolicyType("");
     setProduct("");
-    setHashtag("");
+    setHashtags("");
     setHasBranch("");
     setNotHasBranch("");
     setPolicyCountMin("");
@@ -181,7 +182,7 @@ export default function CustomerProfiles() {
     setLocation("/customer-profiles");
   };
 
-  const hasActiveFilters = search || city || customerType || policyType || product || hashtag || hasBranch || notHasBranch || policyCountMin || policyCountMax || vehicleCountMin || vehicleAgeMax;
+  const hasActiveFilters = search || city || customerType || policyType || product || hashtags || hasBranch || notHasBranch || policyCountMin || policyCountMax || vehicleCountMin || vehicleAgeMax;
 
   const formatCurrency = (value: string | null) => {
     if (!value) return "-";
@@ -298,10 +299,10 @@ export default function CustomerProfiles() {
             <div className="flex-1 min-w-[180px]">
               <Input
                 placeholder="Hashtag ara (#premium, #kurumsal...)"
-                value={hashtag}
-                onChange={(e) => setHashtag(e.target.value)}
+                value={hashtags}
+                onChange={(e) => setHashtags(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                data-testid="input-hashtag"
+                data-testid="input-hashtags"
               />
             </div>
             <Button onClick={handleSearch} data-testid="button-apply-filters">
