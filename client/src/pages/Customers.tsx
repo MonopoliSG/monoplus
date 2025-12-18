@@ -44,9 +44,9 @@ export default function Customers() {
   const [showFilters, setShowFilters] = useState(false);
   
   const [searchTerm, setSearchTerm] = useState("");
-  const [cityFilter, setCityFilter] = useState<string>("");
-  const [branchFilter, setBranchFilter] = useState<string>("");
-  const [dateType, setDateType] = useState<string>("");
+  const [cityFilter, setCityFilter] = useState<string>("__all__");
+  const [branchFilter, setBranchFilter] = useState<string>("__all__");
+  const [dateType, setDateType] = useState<string>("__all__");
   const [dateFrom, setDateFrom] = useState<string>("");
   const [dateTo, setDateTo] = useState<string>("");
 
@@ -77,15 +77,15 @@ export default function Customers() {
         }
       }
 
-      if (cityFilter && customer.sehir !== cityFilter) {
+      if (cityFilter && cityFilter !== "__all__" && customer.sehir !== cityFilter) {
         return false;
       }
 
-      if (branchFilter && customer.anaBrans !== branchFilter) {
+      if (branchFilter && branchFilter !== "__all__" && customer.anaBrans !== branchFilter) {
         return false;
       }
 
-      if (dateType && dateFrom) {
+      if (dateType && dateType !== "__all__" && dateFrom) {
         const customerDate = dateType === "policeBitis"
           ? customer.bitisTarihi
           : dateType === "policeBaslangic"
@@ -99,7 +99,7 @@ export default function Customers() {
         }
       }
 
-      if (dateType && dateTo) {
+      if (dateType && dateType !== "__all__" && dateTo) {
         const customerDate = dateType === "policeBitis"
           ? customer.bitisTarihi
           : dateType === "policeBaslangic"
@@ -119,9 +119,9 @@ export default function Customers() {
 
   const clearFilters = () => {
     setSearchTerm("");
-    setCityFilter("");
-    setBranchFilter("");
-    setDateType("");
+    setCityFilter("__all__");
+    setBranchFilter("__all__");
+    setDateType("__all__");
     setDateFrom("");
     setDateTo("");
   };
@@ -171,7 +171,7 @@ export default function Customers() {
                     <SelectValue placeholder="Şehir seçin" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Tümü</SelectItem>
+                    <SelectItem value="__all__">Tümü</SelectItem>
                     {cities.map((city) => (
                       <SelectItem key={city} value={city!}>{city}</SelectItem>
                     ))}
@@ -186,7 +186,7 @@ export default function Customers() {
                     <SelectValue placeholder="Branş seçin" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Tümü</SelectItem>
+                    <SelectItem value="__all__">Tümü</SelectItem>
                     {branches.map((branch) => (
                       <SelectItem key={branch} value={branch!}>{branch}</SelectItem>
                     ))}
@@ -201,7 +201,7 @@ export default function Customers() {
                     <SelectValue placeholder="Tarih türü seçin" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Tümü</SelectItem>
+                    <SelectItem value="__all__">Tümü</SelectItem>
                     <SelectItem value="policeBitis">Poliçe Bitiş</SelectItem>
                     <SelectItem value="policeBaslangic">Poliçe Başlangıç</SelectItem>
                     <SelectItem value="tanzim">Tanzim Tarihi</SelectItem>
@@ -209,7 +209,7 @@ export default function Customers() {
                 </Select>
               </div>
 
-              {dateType && (
+              {dateType && dateType !== "__all__" && (
                 <>
                   <div className="space-y-2">
                     <Label>Başlangıç Tarihi</Label>
