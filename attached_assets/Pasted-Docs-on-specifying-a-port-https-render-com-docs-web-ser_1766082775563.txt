@@ -1,0 +1,49 @@
+Docs on specifying a port: https://render.com/docs/web-services#port-binding
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_target.c',
+  line: '1065',
+  routine: 'checkInsertTargets'
+}
+6:29:46 PM [express] POST /api/ai/analyze-customers 500 in 98522ms :: {"message":"Müşteri analizi başarısız oldu"}
+Error creating custom segment: ps [Error]: 429 You exceeded your current quota, please check your plan and billing details. For more information on this error, read the docs: https://platform.openai.com/docs/guides/error-codes/api-errors.
+    at t.generate (/opt/render/project/src/dist/index.cjs:140:5489)
+    at ee.makeStatusError (/opt/render/project/src/dist/index.cjs:162:1172)
+    at ee.makeRequest (/opt/render/project/src/dist/index.cjs:162:4487)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async /opt/render/project/src/dist/index.cjs:253:63 {
+  status: 429,
+  headers: Headers {
+    date: 'Thu, 18 Dec 2025 18:30:01 GMT',
+    'content-type': 'application/json; charset=utf-8',
+    'content-length': '337',
+    connection: 'keep-alive',
+    vary: 'Origin',
+    'x-request-id': 'req_47858b84b68e47cba6f829efb9b1afe0',
+    'x-envoy-upstream-service-time': '218',
+    'x-openai-proxy-wasm': 'v0.1',
+    'cf-cache-status': 'DYNAMIC',
+    'set-cookie': '__cf_bm=ccPmSOweV3p3Ph.ew7bbhFFjQjb7pAeGoNNVB_IOhyc-1766082601-1.0.1.1-xmV4xbCIPey5sK36nmazV933hX6NYI3XCiZA35jAqUBLaiHH6AG_WgDmZlbQQ_HRr6c63IEk4vRzKK9JgK0ILha_nI2XvuKWcoj6CDYh.Tg; path=/; expires=Thu, 18-Dec-25 19:00:01 GMT; domain=.api.openai.com; HttpOnly; Secure; SameSite=None, _cfuvid=gM6e2R.0.pvoNvGYwqwYT1BcuObLL8.oerDGDcYeJWo-1766082601296-0.0.1.1-604800000; path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None',
+    'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+    'x-content-type-options': 'nosniff',
+    server: 'cloudflare',
+    'cf-ray': '9b00baa05a64821a-IAD',
+    'alt-svc': 'h3=":443"; ma=86400'
+  },
+  requestID: 'req_47858b84b68e47cba6f829efb9b1afe0',
+  error: {
+    message: 'You exceeded your current quota, please check your plan and billing details. For more information on this error, read the docs: https://platform.openai.com/docs/guides/error-codes/api-errors.',
+    type: 'insufficient_quota',
+    param: null,
+    code: 'insufficient_quota'
+  },
+  code: 'insufficient_quota',
+  param: null,
+  type: 'insufficient_quota'
+}
+6:30:01 PM [express] POST /api/ai/analyze-custom-segment 500 in 6111ms :: {"message":"Özel segment oluşturula
