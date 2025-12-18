@@ -520,20 +520,21 @@ export class DatabaseStorage implements IStorage {
     // Uses tcKimlikNo to group policies by customer
     if (filters.hasBranch) {
       conditions.push(
-        sql`${customers.tcKimlikNo} IN (
+        sql`${customers.tcKimlikNo} IS NOT NULL AND ${customers.tcKimlikNo} IN (
           SELECT tc_kimlik_no FROM customers 
-          WHERE ana_brans ILIKE ${`%${filters.hasBranch}%`}
+          WHERE ana_brans ILIKE ${`%${filters.hasBranch}%`} AND tc_kimlik_no IS NOT NULL
         )`
       );
     }
     
     // Not has branch filter - customers who do NOT have this product/branch
-    // But still have at least one other policy (excludes customers with this branch)
+    // Uses NOT EXISTS instead of NOT IN to handle NULL values properly
     if (filters.notHasBranch) {
       conditions.push(
-        sql`${customers.tcKimlikNo} NOT IN (
-          SELECT tc_kimlik_no FROM customers 
-          WHERE ana_brans ILIKE ${`%${filters.notHasBranch}%`}
+        sql`${customers.tcKimlikNo} IS NOT NULL AND NOT EXISTS (
+          SELECT 1 FROM customers c2 
+          WHERE c2.tc_kimlik_no = ${customers.tcKimlikNo}
+          AND c2.ana_brans ILIKE ${`%${filters.notHasBranch}%`}
         )`
       );
     }
