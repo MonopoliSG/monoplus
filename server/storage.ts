@@ -82,6 +82,8 @@ export interface IStorage {
     city?: string;
     branch?: string;
     segment?: string;
+    renewalDays?: number;
+    aiPredictionType?: string;
   }): Promise<{ customers: Customer[]; total: number; page: number; totalPages: number }>;
 }
 
@@ -360,8 +362,32 @@ export class DatabaseStorage implements IStorage {
     city?: string;
     branch?: string;
     segment?: string;
+    renewalDays?: number;
+    aiPredictionType?: string;
   }): Promise<{ customers: Customer[]; total: number; page: number; totalPages: number }> {
     const conditions = [];
+    
+    // Renewal filter - policies expiring within X days (null-safe, timezone-aware)
+    if (filters.renewalDays) {
+      conditions.push(
+        and(
+          sql`${customers.bitisTarihi} IS NOT NULL`,
+          sql`${customers.bitisTarihi}::date >= CURRENT_DATE`,
+          sql`${customers.bitisTarihi}::date <= CURRENT_DATE + ${filters.renewalDays}::integer`
+        )
+      );
+    }
+    
+    // AI Prediction filter - use EXISTS subquery for efficiency
+    if (filters.aiPredictionType) {
+      conditions.push(
+        sql`EXISTS (
+          SELECT 1 FROM ${aiCustomerPredictions} 
+          WHERE ${aiCustomerPredictions.customerId} = ${customers.id} 
+          AND ${aiCustomerPredictions.analysisType} = ${filters.aiPredictionType}
+        )`
+      );
+    }
 
     if (filters.search) {
       conditions.push(

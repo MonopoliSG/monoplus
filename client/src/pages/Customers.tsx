@@ -45,6 +45,8 @@ export default function Customers() {
   const [location] = useLocation();
   const searchParams = new URLSearchParams(location.split("?")[1] || "");
   const segmentFilter = searchParams.get("segment");
+  const renewalDaysFilter = searchParams.get("renewalDays");
+  const aiPredictionTypeFilter = searchParams.get("aiPredictionType");
 
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -75,6 +77,8 @@ export default function Customers() {
       cityFilter !== "__all__" ? cityFilter : "",
       branchFilter !== "__all__" ? branchFilter : "",
       segmentFilter || "",
+      renewalDaysFilter || "",
+      aiPredictionTypeFilter || "",
     ],
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -84,6 +88,8 @@ export default function Customers() {
       if (cityFilter && cityFilter !== "__all__") params.set("city", cityFilter);
       if (branchFilter && branchFilter !== "__all__") params.set("branch", branchFilter);
       if (segmentFilter) params.set("segment", segmentFilter);
+      if (renewalDaysFilter) params.set("renewalDays", renewalDaysFilter);
+      if (aiPredictionTypeFilter) params.set("aiPredictionType", aiPredictionTypeFilter);
       
       const res = await fetch(`/api/customers/paginated?${params.toString()}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch customers");
@@ -274,14 +280,28 @@ export default function Customers() {
             <p className="text-muted-foreground">
               {totalCustomers} müşteri {totalPages > 1 && `(Sayfa ${currentPage}/${totalPages})`}
             </p>
-            {segmentFilter && (
-              <div className="flex items-center gap-2 mt-1">
-                <Badge variant="secondary" className="text-xs">
-                  Segment: {segmentFilter}
-                </Badge>
+            {(segmentFilter || renewalDaysFilter || aiPredictionTypeFilter) && (
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                {segmentFilter && (
+                  <Badge variant="secondary" className="text-xs">
+                    Segment: {segmentFilter}
+                  </Badge>
+                )}
+                {renewalDaysFilter && (
+                  <Badge variant="secondary" className="text-xs">
+                    {renewalDaysFilter} gün içinde yenileme
+                  </Badge>
+                )}
+                {aiPredictionTypeFilter && (
+                  <Badge variant="secondary" className="text-xs">
+                    {aiPredictionTypeFilter === "cross_sell" ? "Çapraz Satış Fırsatı" : 
+                     aiPredictionTypeFilter === "churn_prediction" ? "İptal Riski" : aiPredictionTypeFilter}
+                  </Badge>
+                )}
                 <Link href="/customers">
-                  <Button variant="ghost" size="sm" className="h-6 px-2" data-testid="button-clear-segment">
-                    <X className="h-3 w-3" />
+                  <Button variant="ghost" size="sm" className="h-6 px-2" data-testid="button-clear-filters">
+                    <X className="h-3 w-3 mr-1" />
+                    Temizle
                   </Button>
                 </Link>
               </div>

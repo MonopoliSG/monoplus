@@ -263,6 +263,7 @@ export default function AIInsights() {
             analysisIcon={<AlertTriangle className="h-4 w-4 mr-2" />}
             analysisLabel="İptal Tahmini Çalıştır"
             analysisTestId="button-run-churn"
+            analysisType="churn_prediction"
           />
           
           {churnLoading ? (
@@ -298,6 +299,7 @@ export default function AIInsights() {
             analysisIcon={<ShoppingCart className="h-4 w-4 mr-2" />}
             analysisLabel="Çapraz Satış Analizi"
             analysisTestId="button-run-crosssell"
+            analysisType="cross_sell"
           />
           
           {crossSellLoading ? (
@@ -443,6 +445,7 @@ function PredictionFilters({
   analysisIcon,
   analysisLabel,
   analysisTestId,
+  analysisType,
 }: {
   filters: Filters;
   setFilters: (f: Filters) => void;
@@ -453,6 +456,7 @@ function PredictionFilters({
   analysisIcon: React.ReactNode;
   analysisLabel: string;
   analysisTestId: string;
+  analysisType: string;
 }) {
   const products = Array.from(new Set(predictions.map((p) => p.currentProduct).filter(Boolean)));
   const cities = Array.from(new Set(predictions.map((p) => p.city).filter(Boolean)));
@@ -469,12 +473,24 @@ function PredictionFilters({
             <Button
               variant="outline"
               size="sm"
+              asChild
+              disabled={predictions.length === 0}
+              data-testid="button-view-customers"
+            >
+              <Link href={`/customers?aiPredictionType=${analysisType}`}>
+                <Users className="h-4 w-4 mr-2" />
+                Müşterileri Gör ({predictions.length})
+              </Link>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={onExport}
               disabled={predictions.length === 0}
               data-testid="button-export-excel"
             >
               <FileSpreadsheet className="h-4 w-4 mr-2" />
-              Excel ({predictions.length})
+              Excel
             </Button>
             <Button
               size="sm"

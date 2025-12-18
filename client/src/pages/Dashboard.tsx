@@ -128,7 +128,7 @@ export default function Dashboard() {
               <CardDescription>Yenileme takibi yapılması gereken müşteriler</CardDescription>
             </div>
             <Button variant="outline" size="sm" asChild>
-              <Link href="/customers">
+              <Link href="/customers?renewalDays=30">
                 Tümünü Gör
                 <ArrowRight className="h-3 w-3 ml-1" />
               </Link>
