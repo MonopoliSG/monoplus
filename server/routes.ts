@@ -1166,8 +1166,8 @@ Sadece JSON objesi döndür.`;
         
         const analysis: InsertAiAnalysis = {
           analysisType: "segmentation",
-          title: `🎁 ${surpriseData.title || "Sürpriz Segment"}`,
-          insight: `${surpriseData.insight || ""}\n\n📋 Hedef Müşteriler (${surpriseData.targetCustomers?.length || 0} kişi): ${surpriseData.targetCustomers?.join(", ") || "Belirleniyor"}\n\n🎯 Ortak Özellikler: ${surpriseData.commonTraits?.join(", ") || ""}\n\n💡 Öneri: ${surpriseData.recommendation || ""}\n\n💰 Potansiyel: ${surpriseData.potentialRevenue || "Hesaplanıyor"}`,
+          title: `[Surpriz] ${surpriseData.title || "Surpriz Segment"}`,
+          insight: `${surpriseData.insight || ""}\n\nHedef Musteriler (${surpriseData.targetCustomers?.length || 0} kisi): ${surpriseData.targetCustomers?.join(", ") || "Belirleniyor"}\n\nOrtak Ozellikler: ${surpriseData.commonTraits?.join(", ") || ""}\n\nOneri: ${surpriseData.recommendation || ""}\n\nPotansiyel: ${surpriseData.potentialRevenue || "Hesaplanıyor"}`,
           confidence: 90,
           category: "Sürpriz Segment",
           customerIds: [],
