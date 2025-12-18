@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated } from "./replitAuth";
+import { setupAdminAuth, isAuthenticated } from "./adminAuth";
 import { insertCustomerSchema, insertProductSchema, insertSegmentSchema, insertCampaignSchema, csvColumnMapping, type InsertCustomer } from "@shared/schema";
 import OpenAI from "openai";
 
@@ -69,13 +69,13 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  await setupAuth(app);
+  await setupAdminAuth(app);
 
   // Auth routes
   app.get("/api/auth/user", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
+      // For admin auth, user is directly in req.user
+      const user = req.user;
       res.json(user);
     } catch (error) {
       console.error("Error fetching user:", error);

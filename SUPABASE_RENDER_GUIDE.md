@@ -126,6 +126,8 @@ Render'da aşağıdaki environment variable'ları ekleyin:
 | `SESSION_SECRET` | Rastgele güçlü bir string | Session şifreleme |
 | `NODE_ENV` | `production` | Production modu |
 | `PORT` | `5000` | Uygulama portu |
+| `ADMIN_USERNAME` | Admin kullanıcı adı | Giriş için kullanıcı adı |
+| `ADMIN_PASSWORD` | Admin şifresi | Giriş için şifre |
 
 **SESSION_SECRET oluşturmak için:**
 ```bash
