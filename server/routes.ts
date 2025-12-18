@@ -758,6 +758,115 @@ Sadece JSON array döndür.`;
     }
   });
 
+  // Custom segment creation with AI
+  app.post("/api/ai/analyze-custom-segment", isAuthenticated, async (req, res) => {
+    try {
+      const { prompt } = req.body;
+      
+      if (!openai) {
+        return res.status(503).json({ message: "AI özellikleri aktif değil. OPENAI_API_KEY gerekli." });
+      }
+
+      if (!prompt || prompt.trim().length < 10) {
+        return res.status(400).json({ message: "Lütfen en az 10 karakterlik bir kriter girin" });
+      }
+
+      const customers = await storage.getAllCustomers();
+      if (customers.length === 0) {
+        return res.status(400).json({ message: "Analiz için müşteri bulunamadı" });
+      }
+
+      const sampleSize = Math.min(100, customers.length);
+      const sampledCustomers = customers.slice(0, sampleSize).map((c) => ({
+        id: c.id,
+        name: c.musteriIsmi,
+        city: c.sehir,
+        branch: c.anaBrans,
+        premium: c.brut,
+        startDate: c.baslangicTarihi,
+        endDate: c.bitisTarihi,
+      }));
+
+      const systemPrompt = `Sen deneyimli bir sigorta uzmanısın. Kullanıcının belirttiği kriterlere göre müşteri segmenti analizi yap.
+
+Müşteri verisi (örnek ${sampleSize} müşteri, toplam ${customers.length} müşteri):
+${JSON.stringify(sampledCustomers.slice(0, 30), null, 2)}
+
+Kullanıcının kriterleri: ${prompt}
+
+Bu kriterlere göre bir segment analizi oluştur. Şu JSON formatında döndür:
+{
+  "title": "Segment adı (kısa ve açıklayıcı)",
+  "insight": "Segment özellikleri, davranış kalıpları ve pazarlama önerileri (detaylı)",
+  "confidence": 85,
+  "metadata": { "customerCount": 500, "avgPremium": 5000 }
+}
+
+Sadece JSON objesi döndür, başka metin ekleme.`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [{ role: "user", content: systemPrompt }],
+        max_completion_tokens: 1000,
+        temperature: 0.3,
+      });
+
+      let content = response.choices[0]?.message?.content || "{}";
+      content = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+      
+      try {
+        const segmentData = JSON.parse(content);
+        
+        const analysis: InsertAiAnalysis = {
+          analysisType: "segmentation",
+          title: segmentData.title || "Özel Segment",
+          insight: segmentData.insight || prompt,
+          confidence: Math.min(100, Math.max(0, parseInt(segmentData.confidence) || 75)),
+          category: "Segmentasyon",
+          customerIds: [],
+          metadata: segmentData.metadata || { customerCount: 0, avgPremium: 0 },
+          isActive: true,
+        };
+
+        await storage.createAiAnalysis(analysis);
+        const analyses = await storage.getAllAiAnalyses();
+        res.json({ success: true, analyses });
+      } catch (parseError) {
+        console.error("Error parsing custom segment response:", parseError);
+        res.status(500).json({ message: "AI yanıtı işlenemedi" });
+      }
+    } catch (error) {
+      console.error("Error creating custom segment:", error);
+      res.status(500).json({ message: "Özel segment oluşturulamadı" });
+    }
+  });
+
+  // Paginated customers endpoint
+  app.get("/api/customers/paginated", isAuthenticated, async (req, res) => {
+    try {
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 50;
+      const search = req.query.search as string;
+      const city = req.query.city as string;
+      const branch = req.query.branch as string;
+      const segment = req.query.segment as string;
+
+      const result = await storage.getCustomersPaginated({
+        page,
+        limit,
+        search,
+        city,
+        branch,
+        segment,
+      });
+      
+      res.json(result);
+    } catch (error) {
+      console.error("Error getting paginated customers:", error);
+      res.status(500).json({ message: "Müşteriler yüklenemedi" });
+    }
+  });
+
   return httpServer;
 }
 

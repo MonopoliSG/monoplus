@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,11 +28,18 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Upload, Filter, Search, Eye, X, Calendar } from "lucide-react";
+import { Upload, Filter, Search, Eye, X, Calendar, ChevronLeft, ChevronRight } from "lucide-react";
 import { Link } from "wouter";
 import type { Customer } from "@shared/schema";
 import { format, parseISO } from "date-fns";
 import { tr } from "date-fns/locale";
+
+interface PaginatedResponse {
+  customers: Customer[];
+  total: number;
+  page: number;
+  totalPages: number;
+}
 
 export default function Customers() {
   const [location] = useLocation();
@@ -44,72 +51,71 @@ export default function Customers() {
   const [showFilters, setShowFilters] = useState(false);
   
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [cityFilter, setCityFilter] = useState<string>("__all__");
   const [branchFilter, setBranchFilter] = useState<string>("__all__");
   const [dateType, setDateType] = useState<string>("__all__");
   const [dateFrom, setDateFrom] = useState<string>("");
   const [dateTo, setDateTo] = useState<string>("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 50;
 
-  const { data: customers = [], isLoading } = useQuery<Customer[]>({
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchTerm(value);
+    setCurrentPage(1);
+    const timer = setTimeout(() => setDebouncedSearch(value), 300);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const { data: paginatedData, isLoading } = useQuery<PaginatedResponse>({
+    queryKey: [
+      "/api/customers/paginated",
+      currentPage,
+      debouncedSearch,
+      cityFilter !== "__all__" ? cityFilter : "",
+      branchFilter !== "__all__" ? branchFilter : "",
+      segmentFilter || "",
+    ],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.set("page", currentPage.toString());
+      params.set("limit", pageSize.toString());
+      if (debouncedSearch) params.set("search", debouncedSearch);
+      if (cityFilter && cityFilter !== "__all__") params.set("city", cityFilter);
+      if (branchFilter && branchFilter !== "__all__") params.set("branch", branchFilter);
+      if (segmentFilter) params.set("segment", segmentFilter);
+      
+      const res = await fetch(`/api/customers/paginated?${params.toString()}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch customers");
+      return res.json();
+    },
+  });
+
+  const customers = paginatedData?.customers || [];
+  const totalPages = paginatedData?.totalPages || 1;
+  const totalCustomers = paginatedData?.total || 0;
+
+  const { data: allCustomersForFilters = [] } = useQuery<Customer[]>({
     queryKey: ["/api/customers"],
+    staleTime: 60000,
   });
 
   const cities = useMemo(() => {
-    const uniqueCities = new Set(customers.map((c) => c.sehir).filter(Boolean));
+    const uniqueCities = new Set(allCustomersForFilters.map((c) => c.sehir).filter(Boolean));
     return Array.from(uniqueCities).sort();
-  }, [customers]);
+  }, [allCustomersForFilters]);
 
   const branches = useMemo(() => {
-    const uniqueBranches = new Set(customers.map((c) => c.anaBrans).filter(Boolean));
+    const uniqueBranches = new Set(allCustomersForFilters.map((c) => c.anaBrans).filter(Boolean));
     return Array.from(uniqueBranches).sort();
-  }, [customers]);
+  }, [allCustomersForFilters]);
 
   const filteredCustomers = useMemo(() => {
+    if (!dateType || dateType === "__all__" || (!dateFrom && !dateTo)) {
+      return customers;
+    }
+    
     return customers.filter((customer) => {
-      // Segment filter based on segment title keywords
-      if (segmentFilter) {
-        const segmentLower = segmentFilter.toLowerCase();
-        const branch = customer.anaBrans?.toLowerCase() || "";
-        const customerType = customer.musteriTipi?.toLowerCase() || "";
-        const firmaTipi = customer.firmaTipi?.toLowerCase() || "";
-        
-        // Match segment keywords with customer data
-        const segmentMatches = 
-          (segmentLower.includes("kurumsal") && (customerType.includes("kurum") || firmaTipi.includes("kurum") || firmaTipi.includes("tüzel"))) ||
-          (segmentLower.includes("bireysel") && (customerType.includes("birey") || firmaTipi.includes("gerçek"))) ||
-          (segmentLower.includes("trafik") && branch.includes("trafik")) ||
-          (segmentLower.includes("kasko") && branch.includes("kasko")) ||
-          (segmentLower.includes("sağlık") && branch.includes("sağlık")) ||
-          (segmentLower.includes("dask") && branch.includes("dask")) ||
-          (segmentLower.includes("konut") && branch.includes("konut")) ||
-          (segmentLower.includes("yangın") && branch.includes("yangın")) ||
-          (segmentLower.includes("mühendislik") && branch.includes("mühendislik")) ||
-          (segmentLower.includes("nakliyat") && branch.includes("nakliyat")) ||
-          (segmentLower.includes("seyahat") && branch.includes("seyahat")) ||
-          (segmentLower.includes("oto") && (branch.includes("oto") || branch.includes("kasko") || branch.includes("trafik")));
-        
-        if (!segmentMatches) return false;
-      }
-      
-      if (searchTerm) {
-        const search = searchTerm.toLowerCase();
-        if (
-          !customer.musteriIsmi?.toLowerCase().includes(search) &&
-          !customer.tcKimlikNo?.toLowerCase().includes(search) &&
-          !customer.gsmNo?.toLowerCase().includes(search)
-        ) {
-          return false;
-        }
-      }
-
-      if (cityFilter && cityFilter !== "__all__" && customer.sehir !== cityFilter) {
-        return false;
-      }
-
-      if (branchFilter && branchFilter !== "__all__" && customer.anaBrans !== branchFilter) {
-        return false;
-      }
-
       if (dateType && dateType !== "__all__" && dateFrom) {
         const customerDate = dateType === "policeBitis"
           ? customer.bitisTarihi
@@ -140,15 +146,17 @@ export default function Customers() {
 
       return true;
     });
-  }, [customers, searchTerm, cityFilter, branchFilter, dateType, dateFrom, dateTo, segmentFilter]);
+  }, [customers, dateType, dateFrom, dateTo]);
 
   const clearFilters = () => {
     setSearchTerm("");
+    setDebouncedSearch("");
     setCityFilter("__all__");
     setBranchFilter("__all__");
     setDateType("__all__");
     setDateFrom("");
     setDateTo("");
+    setCurrentPage(1);
   };
 
   const formatDate = (dateStr: string | null) => {
@@ -264,7 +272,7 @@ export default function Customers() {
           <div>
             <h1 className="text-2xl font-semibold" data-testid="text-page-title">Müşteriler</h1>
             <p className="text-muted-foreground">
-              {filteredCustomers.length} müşteri
+              {totalCustomers} müşteri {totalPages > 1 && `(Sayfa ${currentPage}/${totalPages})`}
             </p>
             {segmentFilter && (
               <div className="flex items-center gap-2 mt-1">
@@ -302,7 +310,7 @@ export default function Customers() {
           <Input
             placeholder="İsim, TC Kimlik veya telefon ile ara..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => handleSearchChange(e.target.value)}
             className="pl-10"
             data-testid="input-search"
           />
@@ -372,6 +380,50 @@ export default function Customers() {
             </Table>
           </ScrollArea>
         </Card>
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center gap-2 py-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+              data-testid="button-first-page"
+            >
+              İlk
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              data-testid="button-prev-page"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="text-sm text-muted-foreground px-2">
+              {currentPage} / {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              data-testid="button-next-page"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages}
+              data-testid="button-last-page"
+            >
+              Son
+            </Button>
+          </div>
+        )}
       </div>
 
       <Sheet open={profileOpen} onOpenChange={setProfileOpen}>

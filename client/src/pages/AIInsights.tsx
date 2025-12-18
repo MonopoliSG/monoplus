@@ -12,7 +12,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Sparkles, RefreshCw, TrendingUp, AlertTriangle, ShoppingCart, FileSpreadsheet, Users, ExternalLink, Search, Filter } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Sparkles, RefreshCw, TrendingUp, AlertTriangle, ShoppingCart, FileSpreadsheet, Users, ExternalLink, Search, Filter, Wand2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
@@ -43,6 +44,7 @@ export default function AIInsights() {
     minProbability: 0,
     maxProbability: 100,
   });
+  const [customSegmentPrompt, setCustomSegmentPrompt] = useState("");
 
   const { data: churnPredictions = [], isLoading: churnLoading } = useQuery<AiCustomerPrediction[]>({
     queryKey: ["/api/ai/predictions", "churn_prediction", churnFilters],
@@ -140,6 +142,26 @@ export default function AIInsights() {
     },
   });
 
+  const runCustomSegmentMutation = useMutation({
+    mutationFn: async (prompt: string) => {
+      const res = await apiRequest("POST", "/api/ai/analyze-custom-segment", { prompt });
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ai/analyses"] });
+      setCustomSegmentPrompt("");
+      toast({ title: "Özel segment oluşturuldu" });
+    },
+    onError: (error: Error) => {
+      if (isUnauthorizedError(error)) {
+        toast({ title: "Oturum sonlandı", variant: "destructive" });
+        setTimeout(() => { window.location.href = "/api/login"; }, 500);
+        return;
+      }
+      toast({ title: "Hata", description: "Segment oluşturulamadı", variant: "destructive" });
+    },
+  });
+
   const exportToExcel = async (analysisType: string, filters: Filters) => {
     try {
       const res = await apiRequest("POST", "/api/ai/predictions/export", {
@@ -170,7 +192,7 @@ export default function AIInsights() {
     }
   };
 
-  const isAnalyzing = runChurnMutation.isPending || runCrossSellMutation.isPending || runSegmentMutation.isPending;
+  const isAnalyzing = runChurnMutation.isPending || runCrossSellMutation.isPending || runSegmentMutation.isPending || runCustomSegmentMutation.isPending;
 
   return (
     <div className="p-6 space-y-6">
@@ -323,6 +345,40 @@ export default function AIInsights() {
                 </Button>
               </div>
             </CardHeader>
+          </Card>
+          
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <Wand2 className="h-4 w-4" />
+                Özel Segment Oluştur
+              </CardTitle>
+              <CardDescription>
+                Kendi kriterlerinizi yazarak AI'ın bu kriterlere göre müşteri segmenti oluşturmasını sağlayın
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Textarea
+                placeholder="Örnek: İstanbul'da yaşayan, kasko sigortası olan ve son 1 yılda poliçe yenileme yapmış müşterileri analiz et..."
+                value={customSegmentPrompt}
+                onChange={(e) => setCustomSegmentPrompt(e.target.value)}
+                className="min-h-[100px]"
+                data-testid="textarea-custom-segment"
+              />
+              <Button
+                onClick={() => runCustomSegmentMutation.mutate(customSegmentPrompt)}
+                disabled={isAnalyzing || !customSegmentPrompt.trim()}
+                className="w-full"
+                data-testid="button-create-custom-segment"
+              >
+                {runCustomSegmentMutation.isPending ? (
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Wand2 className="h-4 w-4 mr-2" />
+                )}
+                Özel Segment Oluştur
+              </Button>
+            </CardContent>
           </Card>
           
           {segmentLoading ? (

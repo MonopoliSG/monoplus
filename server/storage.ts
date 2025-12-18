@@ -73,6 +73,15 @@ export interface IStorage {
   getCustomerPredictionsByCustomerId(customerId: string): Promise<AiCustomerPrediction[]>;
   createCustomerPredictions(predictions: InsertAiCustomerPrediction[]): Promise<AiCustomerPrediction[]>;
   deleteCustomerPredictionsByType(analysisType: string): Promise<void>;
+  
+  getCustomersPaginated(filters: {
+    page: number;
+    limit: number;
+    search?: string;
+    city?: string;
+    branch?: string;
+    segment?: string;
+  }): Promise<{ customers: Customer[]; total: number; page: number; totalPages: number }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -337,6 +346,90 @@ export class DatabaseStorage implements IStorage {
 
   async deleteCustomerPredictionsByType(analysisType: string): Promise<void> {
     await db.delete(aiCustomerPredictions).where(eq(aiCustomerPredictions.analysisType, analysisType));
+  }
+
+  async getCustomersPaginated(filters: {
+    page: number;
+    limit: number;
+    search?: string;
+    city?: string;
+    branch?: string;
+    segment?: string;
+  }): Promise<{ customers: Customer[]; total: number; page: number; totalPages: number }> {
+    const conditions = [];
+
+    if (filters.search) {
+      conditions.push(
+        or(
+          like(customers.musteriIsmi, `%${filters.search}%`),
+          like(customers.tcKimlikNo, `%${filters.search}%`),
+          like(customers.gsmNo, `%${filters.search}%`)
+        )
+      );
+    }
+    if (filters.city) {
+      conditions.push(eq(customers.sehir, filters.city));
+    }
+    if (filters.branch) {
+      conditions.push(eq(customers.anaBrans, filters.branch));
+    }
+    if (filters.segment) {
+      const segmentLower = filters.segment.toLowerCase();
+      const segmentConditions: any[] = [];
+      
+      if (segmentLower.includes("kurumsal")) {
+        segmentConditions.push(like(customers.firmaTipi, `%tüzel%`));
+      }
+      if (segmentLower.includes("bireysel")) {
+        segmentConditions.push(like(customers.firmaTipi, `%gerçek%`));
+      }
+      if (segmentLower.includes("trafik")) {
+        segmentConditions.push(like(customers.anaBrans, `%trafik%`));
+      }
+      if (segmentLower.includes("kasko")) {
+        segmentConditions.push(like(customers.anaBrans, `%kasko%`));
+      }
+      if (segmentLower.includes("sağlık")) {
+        segmentConditions.push(like(customers.anaBrans, `%sağlık%`));
+      }
+      if (segmentLower.includes("dask")) {
+        segmentConditions.push(like(customers.anaBrans, `%dask%`));
+      }
+      if (segmentLower.includes("yangın") || segmentLower.includes("konut")) {
+        segmentConditions.push(like(customers.anaBrans, `%yangın%`));
+        segmentConditions.push(like(customers.anaBrans, `%konut%`));
+      }
+      if (segmentLower.includes("mühendislik")) {
+        segmentConditions.push(like(customers.anaBrans, `%mühendislik%`));
+      }
+      if (segmentConditions.length > 0) {
+        conditions.push(or(...segmentConditions));
+      }
+    }
+
+    const offset = (filters.page - 1) * filters.limit;
+    
+    const countResult = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(customers)
+      .where(conditions.length > 0 ? and(...conditions) : undefined);
+    
+    const total = Number(countResult[0]?.count || 0);
+    
+    const data = await db
+      .select()
+      .from(customers)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(customers.musteriIsmi)
+      .limit(filters.limit)
+      .offset(offset);
+
+    return {
+      customers: data,
+      total,
+      page: filters.page,
+      totalPages: Math.ceil(total / filters.limit),
+    };
   }
 }
 
