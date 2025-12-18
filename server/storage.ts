@@ -85,6 +85,10 @@ export interface IStorage {
     renewalDays?: number;
     aiPredictionType?: string;
     aiAnalysisId?: string;
+    customerType?: string;
+    dateType?: string;
+    dateFrom?: string;
+    dateTo?: string;
   }): Promise<{ customers: Customer[]; total: number; page: number; totalPages: number }>;
 }
 
@@ -366,6 +370,10 @@ export class DatabaseStorage implements IStorage {
     renewalDays?: number;
     aiPredictionType?: string;
     aiAnalysisId?: string;
+    customerType?: string;
+    dateType?: string;
+    dateFrom?: string;
+    dateTo?: string;
   }): Promise<{ customers: Customer[]; total: number; page: number; totalPages: number }> {
     const conditions = [];
     
@@ -417,6 +425,31 @@ export class DatabaseStorage implements IStorage {
     if (filters.branch) {
       conditions.push(eq(customers.anaBrans, filters.branch));
     }
+    
+    // Customer type filter (kurumsal/bireysel)
+    if (filters.customerType) {
+      if (filters.customerType === "kurumsal") {
+        conditions.push(like(customers.musteriTipi, `%Kurumsal%`));
+      } else if (filters.customerType === "bireysel") {
+        conditions.push(like(customers.musteriTipi, `%Bireysel%`));
+      }
+    }
+    
+    // Date range filter
+    if (filters.dateType && (filters.dateFrom || filters.dateTo)) {
+      const dateColumn = 
+        filters.dateType === "policeBitis" ? customers.bitisTarihi :
+        filters.dateType === "policeBaslangic" ? customers.baslangicTarihi :
+        customers.tanzimTarihi;
+      
+      if (filters.dateFrom) {
+        conditions.push(sql`${dateColumn}::date >= ${filters.dateFrom}::date`);
+      }
+      if (filters.dateTo) {
+        conditions.push(sql`${dateColumn}::date <= ${filters.dateTo}::date`);
+      }
+    }
+    
     if (filters.segment) {
       const segmentLower = filters.segment.toLowerCase().replace(/i̇/g, 'i').replace(/ı/g, 'i');
       console.log("[DEBUG] Segment filter raw:", filters.segment, "-> normalized:", segmentLower);

@@ -18,6 +18,46 @@ import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import type { AiCustomerPrediction, AiAnalysis } from "@shared/schema";
+import { buildCustomerFilterUrl } from "./Customers";
+
+// Parse segment title to build appropriate filters + include analysis ID for scoping
+function buildSegmentFilterUrl(segmentTitle: string, analysisId?: string): string {
+  const title = segmentTitle.toLowerCase().replace(/i̇/g, 'i').replace(/ı/g, 'i');
+  const filters: Parameters<typeof buildCustomerFilterUrl>[0] = {};
+  
+  // Include aiAnalysisId if provided for server-side scope filtering
+  if (analysisId) {
+    filters.aiAnalysisId = analysisId;
+  }
+  
+  // Also detect customer type from title
+  if (title.includes("kurumsal") || title.includes("tüzel")) {
+    filters.customerType = "kurumsal";
+  } else if (title.includes("bireysel") || title.includes("gerçek")) {
+    filters.customerType = "bireysel";
+  }
+  
+  // Detect branch/product - prioritize more specific matches
+  if (title.includes("kasko")) {
+    filters.branch = "Oto Kaza (Kasko)";
+  } else if (title.includes("trafik")) {
+    filters.branch = "Oto Kaza (Trafik)";
+  } else if (title.includes("dask")) {
+    filters.branch = "Dask";
+  } else if (title.includes("sağlık") || title.includes("saglik")) {
+    filters.branch = "Sağlık";
+  } else if (title.includes("yangın") || title.includes("yangin") || title.includes("konut")) {
+    filters.branch = "Yangın (Konut)";
+  } else if (title.includes("seyahat")) {
+    filters.branch = "Seyahat Sağlık";
+  } else if (title.includes("ferdi") || title.includes("kaza")) {
+    filters.branch = "Ferdi Kaza";
+  } else if (title.includes("nakliyat")) {
+    filters.branch = "Nakliyat";
+  }
+  
+  return buildCustomerFilterUrl(filters);
+}
 
 interface Filters {
   search: string;
@@ -417,7 +457,7 @@ export default function AIInsights() {
                     </CardHeader>
                     <CardContent className="space-y-3">
                       <p className="text-sm text-muted-foreground">{analysis.insight}</p>
-                      <Link href={`/customers?aiAnalysisId=${analysis.id}`}>
+                      <Link href={buildSegmentFilterUrl(analysis.title, analysis.id)}>
                         <Button variant="outline" size="sm" className="w-full" data-testid={`button-view-segment-${analysis.id}`}>
                           <Users className="h-4 w-4 mr-2" />
                           Müşterileri Gör

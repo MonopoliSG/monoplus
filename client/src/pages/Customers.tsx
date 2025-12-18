@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,58 +41,161 @@ interface PaginatedResponse {
   totalPages: number;
 }
 
-export default function Customers() {
-  const [location] = useLocation();
-  const searchParams = new URLSearchParams(location.split("?")[1] || "");
-  const segmentFilter = searchParams.get("segment");
-  const renewalDaysFilter = searchParams.get("renewalDays");
-  const aiPredictionTypeFilter = searchParams.get("aiPredictionType");
-  const aiAnalysisIdFilter = searchParams.get("aiAnalysisId");
+// Helper function to build customer filter URL
+export function buildCustomerFilterUrl(filters: {
+  search?: string;
+  city?: string;
+  branch?: string;
+  segment?: string;
+  renewalDays?: number;
+  aiPredictionType?: string;
+  aiAnalysisId?: string;
+  dateType?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  customerType?: string;
+  page?: number;
+}): string {
+  const params = new URLSearchParams();
+  
+  if (filters.search) params.set("search", filters.search);
+  if (filters.city) params.set("city", filters.city);
+  if (filters.branch) params.set("branch", filters.branch);
+  if (filters.segment) params.set("segment", filters.segment);
+  if (filters.renewalDays) params.set("renewalDays", filters.renewalDays.toString());
+  if (filters.aiPredictionType) params.set("aiPredictionType", filters.aiPredictionType);
+  if (filters.aiAnalysisId) params.set("aiAnalysisId", filters.aiAnalysisId);
+  if (filters.dateType) params.set("dateType", filters.dateType);
+  if (filters.dateFrom) params.set("dateFrom", filters.dateFrom);
+  if (filters.dateTo) params.set("dateTo", filters.dateTo);
+  if (filters.customerType) params.set("customerType", filters.customerType);
+  if (filters.page && filters.page > 1) params.set("page", filters.page.toString());
+  
+  const queryString = params.toString();
+  return queryString ? `/customers?${queryString}` : "/customers";
+}
 
+// Parse filters from URL
+function parseFiltersFromUrl(location: string): {
+  search: string;
+  city: string;
+  branch: string;
+  segment: string;
+  renewalDays: string;
+  aiPredictionType: string;
+  aiAnalysisId: string;
+  dateType: string;
+  dateFrom: string;
+  dateTo: string;
+  customerType: string;
+  page: number;
+} {
+  const searchParams = new URLSearchParams(location.split("?")[1] || "");
+  return {
+    search: searchParams.get("search") || "",
+    city: searchParams.get("city") || "",
+    branch: searchParams.get("branch") || "",
+    segment: searchParams.get("segment") || "",
+    renewalDays: searchParams.get("renewalDays") || "",
+    aiPredictionType: searchParams.get("aiPredictionType") || "",
+    aiAnalysisId: searchParams.get("aiAnalysisId") || "",
+    dateType: searchParams.get("dateType") || "",
+    dateFrom: searchParams.get("dateFrom") || "",
+    dateTo: searchParams.get("dateTo") || "",
+    customerType: searchParams.get("customerType") || "",
+    page: parseInt(searchParams.get("page") || "1") || 1,
+  };
+}
+
+export default function Customers() {
+  const [location, navigate] = useLocation();
+  const filters = parseFiltersFromUrl(location);
+  
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   
-  const [searchTerm, setSearchTerm] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [cityFilter, setCityFilter] = useState<string>("__all__");
-  const [branchFilter, setBranchFilter] = useState<string>("__all__");
-  const [dateType, setDateType] = useState<string>("__all__");
-  const [dateFrom, setDateFrom] = useState<string>("");
-  const [dateTo, setDateTo] = useState<string>("");
-  const [currentPage, setCurrentPage] = useState(1);
+  // Local search state for debouncing
+  const [localSearch, setLocalSearch] = useState(filters.search);
   const pageSize = 50;
 
-  const handleSearchChange = useCallback((value: string) => {
-    setSearchTerm(value);
-    setCurrentPage(1);
-    const timer = setTimeout(() => setDebouncedSearch(value), 300);
+  // Sync local search with URL when URL changes
+  useEffect(() => {
+    setLocalSearch(filters.search);
+  }, [filters.search]);
+
+  // Debounced search update
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (localSearch !== filters.search) {
+        updateFilters({ search: localSearch || undefined, page: undefined });
+      }
+    }, 300);
     return () => clearTimeout(timer);
-  }, []);
+  }, [localSearch]);
+
+  // Update URL with new filters
+  const updateFilters = useCallback((newFilters: Partial<typeof filters>) => {
+    const merged = { ...filters, ...newFilters };
+    // Reset page to 1 when filters change (except when explicitly setting page)
+    if (!('page' in newFilters)) {
+      merged.page = 1;
+    }
+    const url = buildCustomerFilterUrl({
+      search: merged.search || undefined,
+      city: merged.city || undefined,
+      branch: merged.branch || undefined,
+      segment: merged.segment || undefined,
+      renewalDays: merged.renewalDays ? parseInt(merged.renewalDays) : undefined,
+      aiPredictionType: merged.aiPredictionType || undefined,
+      aiAnalysisId: merged.aiAnalysisId || undefined,
+      dateType: merged.dateType || undefined,
+      dateFrom: merged.dateFrom || undefined,
+      dateTo: merged.dateTo || undefined,
+      customerType: merged.customerType || undefined,
+      page: merged.page,
+    });
+    navigate(url, { replace: true });
+  }, [filters, navigate]);
+
+  // Check if any filters are active
+  const hasActiveFilters = !!(
+    filters.search || filters.city || filters.branch || filters.segment ||
+    filters.renewalDays || filters.aiPredictionType || filters.aiAnalysisId ||
+    filters.dateType || filters.dateFrom || filters.dateTo || filters.customerType
+  );
 
   const { data: paginatedData, isLoading } = useQuery<PaginatedResponse>({
     queryKey: [
       "/api/customers/paginated",
-      currentPage,
-      debouncedSearch,
-      cityFilter !== "__all__" ? cityFilter : "",
-      branchFilter !== "__all__" ? branchFilter : "",
-      segmentFilter || "",
-      renewalDaysFilter || "",
-      aiPredictionTypeFilter || "",
-      aiAnalysisIdFilter || "",
+      filters.page,
+      filters.search,
+      filters.city,
+      filters.branch,
+      filters.segment,
+      filters.renewalDays,
+      filters.aiPredictionType,
+      filters.aiAnalysisId,
+      filters.dateType,
+      filters.dateFrom,
+      filters.dateTo,
+      filters.customerType,
     ],
     queryFn: async () => {
       const params = new URLSearchParams();
-      params.set("page", currentPage.toString());
+      params.set("page", filters.page.toString());
       params.set("limit", pageSize.toString());
-      if (debouncedSearch) params.set("search", debouncedSearch);
-      if (cityFilter && cityFilter !== "__all__") params.set("city", cityFilter);
-      if (branchFilter && branchFilter !== "__all__") params.set("branch", branchFilter);
-      if (segmentFilter) params.set("segment", segmentFilter);
-      if (renewalDaysFilter) params.set("renewalDays", renewalDaysFilter);
-      if (aiPredictionTypeFilter) params.set("aiPredictionType", aiPredictionTypeFilter);
-      if (aiAnalysisIdFilter) params.set("aiAnalysisId", aiAnalysisIdFilter);
+      if (filters.search) params.set("search", filters.search);
+      if (filters.city) params.set("city", filters.city);
+      if (filters.branch) params.set("branch", filters.branch);
+      if (filters.segment) params.set("segment", filters.segment);
+      if (filters.renewalDays) params.set("renewalDays", filters.renewalDays);
+      if (filters.aiPredictionType) params.set("aiPredictionType", filters.aiPredictionType);
+      if (filters.aiAnalysisId) params.set("aiAnalysisId", filters.aiAnalysisId);
+      if (filters.dateType) params.set("dateType", filters.dateType);
+      if (filters.dateFrom) params.set("dateFrom", filters.dateFrom);
+      if (filters.dateTo) params.set("dateTo", filters.dateTo);
+      if (filters.customerType) params.set("customerType", filters.customerType);
       
       const res = await fetch(`/api/customers/paginated?${params.toString()}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch customers");
@@ -119,55 +222,6 @@ export default function Customers() {
     return Array.from(uniqueBranches).sort();
   }, [allCustomersForFilters]);
 
-  const filteredCustomers = useMemo(() => {
-    if (!dateType || dateType === "__all__" || (!dateFrom && !dateTo)) {
-      return customers;
-    }
-    
-    return customers.filter((customer) => {
-      if (dateType && dateType !== "__all__" && dateFrom) {
-        const customerDate = dateType === "policeBitis"
-          ? customer.bitisTarihi
-          : dateType === "policeBaslangic"
-          ? customer.baslangicTarihi
-          : customer.tanzimTarihi;
-        
-        if (customerDate) {
-          const cDate = new Date(customerDate);
-          const fromDate = new Date(dateFrom);
-          if (cDate < fromDate) return false;
-        }
-      }
-
-      if (dateType && dateType !== "__all__" && dateTo) {
-        const customerDate = dateType === "policeBitis"
-          ? customer.bitisTarihi
-          : dateType === "policeBaslangic"
-          ? customer.baslangicTarihi
-          : customer.tanzimTarihi;
-        
-        if (customerDate) {
-          const cDate = new Date(customerDate);
-          const toDate = new Date(dateTo);
-          if (cDate > toDate) return false;
-        }
-      }
-
-      return true;
-    });
-  }, [customers, dateType, dateFrom, dateTo]);
-
-  const clearFilters = () => {
-    setSearchTerm("");
-    setDebouncedSearch("");
-    setCityFilter("__all__");
-    setBranchFilter("__all__");
-    setDateType("__all__");
-    setDateFrom("");
-    setDateTo("");
-    setCurrentPage(1);
-  };
-
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return "-";
     try {
@@ -177,43 +231,76 @@ export default function Customers() {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="p-6">
-        <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-muted rounded w-48" />
-          <div className="h-96 bg-muted rounded" />
-        </div>
-      </div>
-    );
-  }
+  // Get filter label for display
+  const getFilterLabel = (key: string, value: string): string => {
+    switch (key) {
+      case "city": return `Şehir: ${value}`;
+      case "branch": return `Branş: ${value}`;
+      case "segment": return `Segment: ${value}`;
+      case "renewalDays": return `${value} gün içinde yenileme`;
+      case "aiPredictionType": 
+        return value === "cross_sell" ? "Çapraz Satış Fırsatı" : 
+               value === "churn_prediction" ? "İptal Riski" : value;
+      case "aiAnalysisId": return "AI Segment Analizi";
+      case "customerType": return value === "kurumsal" ? "Kurumsal" : "Bireysel";
+      case "dateType": 
+        return value === "policeBitis" ? "Bitiş Tarihi" : 
+               value === "policeBaslangic" ? "Başlangıç Tarihi" : "Tanzim Tarihi";
+      case "dateFrom": return `Tarih: ${value}`;
+      case "dateTo": return `- ${value}`;
+      default: return value;
+    }
+  };
+
+  // Get active filter badges
+  const getActiveFilterBadges = () => {
+    const badges: { key: string; label: string }[] = [];
+    if (filters.city) badges.push({ key: "city", label: getFilterLabel("city", filters.city) });
+    if (filters.branch) badges.push({ key: "branch", label: getFilterLabel("branch", filters.branch) });
+    if (filters.segment) badges.push({ key: "segment", label: getFilterLabel("segment", filters.segment) });
+    if (filters.renewalDays) badges.push({ key: "renewalDays", label: getFilterLabel("renewalDays", filters.renewalDays) });
+    if (filters.aiPredictionType) badges.push({ key: "aiPredictionType", label: getFilterLabel("aiPredictionType", filters.aiPredictionType) });
+    if (filters.aiAnalysisId) badges.push({ key: "aiAnalysisId", label: getFilterLabel("aiAnalysisId", filters.aiAnalysisId) });
+    if (filters.customerType) badges.push({ key: "customerType", label: getFilterLabel("customerType", filters.customerType) });
+    if (filters.dateType && (filters.dateFrom || filters.dateTo)) {
+      let dateLabel = getFilterLabel("dateType", filters.dateType);
+      if (filters.dateFrom) dateLabel += `: ${filters.dateFrom}`;
+      if (filters.dateTo) dateLabel += ` - ${filters.dateTo}`;
+      badges.push({ key: "date", label: dateLabel });
+    }
+    return badges;
+  };
 
   return (
-    <div className="flex h-full">
+    <div className="flex-1 flex flex-col h-full overflow-hidden">
       {showFilters && (
-        <div className="w-72 border-r bg-muted/30 absolute lg:relative z-10 h-full bg-background lg:bg-muted/30 shadow-lg lg:shadow-none">
-          <div className="p-4 space-y-4">
-            <div className="flex items-center justify-between gap-2">
+        <div className="border-b bg-muted/30 p-4">
+          <div className="max-w-6xl mx-auto">
+            <div className="flex items-center justify-between mb-4 gap-2">
               <h3 className="font-medium">Filtreler</h3>
-              <div className="flex items-center gap-1">
-                <Button variant="ghost" size="sm" onClick={clearFilters}>
-                  Temizle
-                </Button>
-                <Button variant="ghost" size="icon" onClick={() => setShowFilters(false)} className="lg:hidden">
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate("/customers")}
+                disabled={!hasActiveFilters}
+                data-testid="button-clear-all-filters"
+              >
+                <X className="h-4 w-4 mr-1" />
+                Tümünü Temizle
+              </Button>
             </div>
-
-            <div className="space-y-3">
+            <div className="grid gap-4 md:grid-cols-5">
               <div className="space-y-2">
                 <Label>Şehir</Label>
-                <Select value={cityFilter} onValueChange={setCityFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Şehir seçin" />
+                <Select
+                  value={filters.city || "__all__"}
+                  onValueChange={(v) => updateFilters({ city: v === "__all__" ? "" : v })}
+                >
+                  <SelectTrigger data-testid="select-city">
+                    <SelectValue placeholder="Tüm şehirler" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__all__">Tümü</SelectItem>
+                    <SelectItem value="__all__">Tüm şehirler</SelectItem>
                     {cities.map((city) => (
                       <SelectItem key={city} value={city!}>{city}</SelectItem>
                     ))}
@@ -223,12 +310,15 @@ export default function Customers() {
 
               <div className="space-y-2">
                 <Label>Ana Branş</Label>
-                <Select value={branchFilter} onValueChange={setBranchFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Branş seçin" />
+                <Select
+                  value={filters.branch || "__all__"}
+                  onValueChange={(v) => updateFilters({ branch: v === "__all__" ? "" : v })}
+                >
+                  <SelectTrigger data-testid="select-branch">
+                    <SelectValue placeholder="Tüm branşlar" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__all__">Tümü</SelectItem>
+                    <SelectItem value="__all__">Tüm branşlar</SelectItem>
                     {branches.map((branch) => (
                       <SelectItem key={branch} value={branch!}>{branch}</SelectItem>
                     ))}
@@ -237,13 +327,33 @@ export default function Customers() {
               </div>
 
               <div className="space-y-2">
-                <Label>Tarih Türü</Label>
-                <Select value={dateType} onValueChange={setDateType}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Tarih türü seçin" />
+                <Label>Müşteri Tipi</Label>
+                <Select
+                  value={filters.customerType || "__all__"}
+                  onValueChange={(v) => updateFilters({ customerType: v === "__all__" ? "" : v })}
+                >
+                  <SelectTrigger data-testid="select-customer-type">
+                    <SelectValue placeholder="Tüm tipler" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__all__">Tümü</SelectItem>
+                    <SelectItem value="__all__">Tüm tipler</SelectItem>
+                    <SelectItem value="kurumsal">Kurumsal</SelectItem>
+                    <SelectItem value="bireysel">Bireysel</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Tarih Türü</Label>
+                <Select
+                  value={filters.dateType || "__all__"}
+                  onValueChange={(v) => updateFilters({ dateType: v === "__all__" ? "" : v })}
+                >
+                  <SelectTrigger data-testid="select-date-type">
+                    <SelectValue placeholder="Tarih seçin" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Tarih filtresi yok</SelectItem>
                     <SelectItem value="policeBitis">Poliçe Bitiş</SelectItem>
                     <SelectItem value="policeBaslangic">Poliçe Başlangıç</SelectItem>
                     <SelectItem value="tanzim">Tanzim Tarihi</SelectItem>
@@ -251,22 +361,24 @@ export default function Customers() {
                 </Select>
               </div>
 
-              {dateType && dateType !== "__all__" && (
+              {filters.dateType && (
                 <>
                   <div className="space-y-2">
                     <Label>Başlangıç Tarihi</Label>
                     <Input
                       type="date"
-                      value={dateFrom}
-                      onChange={(e) => setDateFrom(e.target.value)}
+                      value={filters.dateFrom}
+                      onChange={(e) => updateFilters({ dateFrom: e.target.value })}
+                      data-testid="input-date-from"
                     />
                   </div>
                   <div className="space-y-2">
                     <Label>Bitiş Tarihi</Label>
                     <Input
                       type="date"
-                      value={dateTo}
-                      onChange={(e) => setDateTo(e.target.value)}
+                      value={filters.dateTo}
+                      onChange={(e) => updateFilters({ dateTo: e.target.value })}
+                      data-testid="input-date-to"
                     />
                   </div>
                 </>
@@ -281,31 +393,15 @@ export default function Customers() {
           <div>
             <h1 className="text-2xl font-semibold" data-testid="text-page-title">Müşteriler</h1>
             <p className="text-muted-foreground">
-              {totalCustomers} müşteri {totalPages > 1 && `(Sayfa ${currentPage}/${totalPages})`}
+              {totalCustomers} müşteri {totalPages > 1 && `(Sayfa ${filters.page}/${totalPages})`}
             </p>
-            {(segmentFilter || renewalDaysFilter || aiPredictionTypeFilter || aiAnalysisIdFilter) && (
-              <div className="flex items-center gap-2 mt-1 flex-wrap">
-                {segmentFilter && (
-                  <Badge variant="secondary" className="text-xs">
-                    Segment: {segmentFilter}
+            {hasActiveFilters && (
+              <div className="flex items-center gap-2 mt-2 flex-wrap">
+                {getActiveFilterBadges().map((badge) => (
+                  <Badge key={badge.key} variant="secondary" className="text-xs">
+                    {badge.label}
                   </Badge>
-                )}
-                {renewalDaysFilter && (
-                  <Badge variant="secondary" className="text-xs">
-                    {renewalDaysFilter} gün içinde yenileme
-                  </Badge>
-                )}
-                {aiPredictionTypeFilter && (
-                  <Badge variant="secondary" className="text-xs">
-                    {aiPredictionTypeFilter === "cross_sell" ? "Çapraz Satış Fırsatı" : 
-                     aiPredictionTypeFilter === "churn_prediction" ? "İptal Riski" : aiPredictionTypeFilter}
-                  </Badge>
-                )}
-                {aiAnalysisIdFilter && (
-                  <Badge variant="secondary" className="text-xs">
-                    AI Segment Analizi
-                  </Badge>
-                )}
+                ))}
                 <Link href="/customers">
                   <Button variant="ghost" size="sm" className="h-6 px-2" data-testid="button-clear-filters">
                     <X className="h-3 w-3 mr-1" />
@@ -337,8 +433,8 @@ export default function Customers() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="İsim, TC Kimlik veya telefon ile ara..."
-            value={searchTerm}
-            onChange={(e) => handleSearchChange(e.target.value)}
+            value={localSearch}
+            onChange={(e) => setLocalSearch(e.target.value)}
             className="pl-10"
             data-testid="input-search"
           />
@@ -359,14 +455,23 @@ export default function Customers() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredCustomers.length === 0 ? (
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-8">
+                      <div className="flex items-center justify-center gap-2 text-muted-foreground">
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                        Yükleniyor...
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : customers.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                       Müşteri bulunamadı
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredCustomers.map((customer) => (
+                  customers.map((customer) => (
                     <TableRow key={customer.id} data-testid={`row-customer-${customer.id}`}>
                       <TableCell>
                         <div>
@@ -414,8 +519,8 @@ export default function Customers() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setCurrentPage(1)}
-              disabled={currentPage === 1}
+              onClick={() => updateFilters({ page: 1 })}
+              disabled={filters.page === 1}
               data-testid="button-first-page"
             >
               İlk
@@ -423,20 +528,20 @@ export default function Customers() {
             <Button
               variant="outline"
               size="icon"
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
+              onClick={() => updateFilters({ page: Math.max(1, filters.page - 1) })}
+              disabled={filters.page === 1}
               data-testid="button-prev-page"
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <span className="text-sm text-muted-foreground px-2">
-              {currentPage} / {totalPages}
+              {filters.page} / {totalPages}
             </span>
             <Button
               variant="outline"
               size="icon"
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
+              onClick={() => updateFilters({ page: Math.min(totalPages, filters.page + 1) })}
+              disabled={filters.page === totalPages}
               data-testid="button-next-page"
             >
               <ChevronRight className="h-4 w-4" />
@@ -444,8 +549,8 @@ export default function Customers() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setCurrentPage(totalPages)}
-              disabled={currentPage === totalPages}
+              onClick={() => updateFilters({ page: totalPages })}
+              disabled={filters.page === totalPages}
               data-testid="button-last-page"
             >
               Son
@@ -455,90 +560,91 @@ export default function Customers() {
       </div>
 
       <Sheet open={profileOpen} onOpenChange={setProfileOpen}>
-        <SheetContent className="w-full sm:max-w-xl overflow-auto">
+        <SheetContent className="w-[400px] sm:w-[540px] overflow-y-auto">
           <SheetHeader>
             <SheetTitle>Müşteri Profili</SheetTitle>
           </SheetHeader>
           {selectedCustomer && (
-            <div className="mt-6 space-y-6">
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-muted-foreground">Ünvan</Label>
-                    <p className="font-medium">{selectedCustomer.musteriIsmi}</p>
+            <div className="space-y-6 mt-6">
+              <div>
+                <h3 className="font-semibold mb-2">Kişisel Bilgiler</h3>
+                <div className="grid gap-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Ad Soyad</span>
+                    <span className="font-medium">{selectedCustomer.musteriIsmi}</span>
                   </div>
-                  <div>
-                    <Label className="text-muted-foreground">TC Kimlik No</Label>
-                    <p className="font-mono">{selectedCustomer.tcKimlikNo}</p>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">TC Kimlik No</span>
+                    <span className="font-mono">{selectedCustomer.tcKimlikNo}</span>
                   </div>
-                  <div>
-                    <Label className="text-muted-foreground">Telefon</Label>
-                    <p>{selectedCustomer.gsmNo || "-"}</p>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Telefon</span>
+                    <span>{selectedCustomer.gsmNo || "-"}</span>
                   </div>
-                  <div>
-                    <Label className="text-muted-foreground">Meslek</Label>
-                    <p>{selectedCustomer.meslekGrubu || "-"}</p>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Hesap Kodu</span>
+                    <span>{selectedCustomer.hesapKodu || "-"}</span>
                   </div>
-                  <div>
-                    <Label className="text-muted-foreground">Şehir</Label>
-                    <p>{selectedCustomer.sehir || "-"}</p>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Şehir</span>
+                    <span>{selectedCustomer.sehir || "-"}</span>
                   </div>
-                  <div>
-                    <Label className="text-muted-foreground">İlçe</Label>
-                    <p>{selectedCustomer.ilce || "-"}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <h4 className="font-medium">Poliçe Bilgileri</h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-muted-foreground">Poliçe No</Label>
-                    <p className="font-mono">{selectedCustomer.policeNumarasi || "-"}</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Ana Branş</Label>
-                    <p>{selectedCustomer.anaBrans || "-"}</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Ara Branş</Label>
-                    <p>{selectedCustomer.araBrans || "-"}</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Başlangıç Tarihi</Label>
-                    <p>{formatDate(selectedCustomer.baslangicTarihi)}</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Bitiş Tarihi</Label>
-                    <p>{formatDate(selectedCustomer.bitisTarihi)}</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Tanzim Tarihi</Label>
-                    <p>{formatDate(selectedCustomer.tanzimTarihi)}</p>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Müşteri Tipi</span>
+                    <span>{selectedCustomer.musteriTipi || "-"}</span>
                   </div>
                 </div>
               </div>
 
-              {selectedCustomer.aracMarkasi && (
-                <div className="space-y-4">
-                  <h4 className="font-medium">Araç Bilgileri</h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label className="text-muted-foreground">Marka</Label>
-                      <p>{selectedCustomer.aracMarkasi}</p>
+              <div>
+                <h3 className="font-semibold mb-2">Poliçe Bilgileri</h3>
+                <div className="grid gap-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Poliçe No</span>
+                    <span className="font-mono">{selectedCustomer.policeNumarasi || "-"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Ana Branş</span>
+                    <span>{selectedCustomer.anaBrans || "-"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Sigorta Şirketi</span>
+                    <span>{selectedCustomer.sigortaSirketiAdi || "-"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Başlangıç Tarihi</span>
+                    <span>{formatDate(selectedCustomer.baslangicTarihi)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Bitiş Tarihi</span>
+                    <span>{formatDate(selectedCustomer.bitisTarihi)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Brüt Prim</span>
+                    <span>{selectedCustomer.brut || "-"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Net Prim</span>
+                    <span>{selectedCustomer.net || "-"}</span>
+                  </div>
+                </div>
+              </div>
+
+              {selectedCustomer.aracPlakasi && (
+                <div>
+                  <h3 className="font-semibold mb-2">Araç Bilgileri</h3>
+                  <div className="grid gap-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Plaka</span>
+                      <span className="font-mono">{selectedCustomer.aracPlakasi}</span>
                     </div>
-                    <div>
-                      <Label className="text-muted-foreground">Model</Label>
-                      <p>{selectedCustomer.aracModeli || "-"}</p>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Marka</span>
+                      <span>{selectedCustomer.aracMarkasi || "-"}</span>
                     </div>
-                    <div>
-                      <Label className="text-muted-foreground">Model Yılı</Label>
-                      <p>{selectedCustomer.modelYili || "-"}</p>
-                    </div>
-                    <div>
-                      <Label className="text-muted-foreground">Plaka</Label>
-                      <p>{selectedCustomer.aracPlakasi || "-"}</p>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Model</span>
+                      <span>{selectedCustomer.aracModeli || "-"}</span>
                     </div>
                   </div>
                 </div>
