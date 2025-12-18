@@ -1094,6 +1094,16 @@ Sadece JSON objesi döndür, başka metin ekleme.`;
   });
 
   // Customer Profiles API
+  app.get("/api/customer-profiles/policy-types", isAuthenticated, async (req, res) => {
+    try {
+      const policyTypes = await storage.getDistinctPolicyTypes();
+      res.json(policyTypes);
+    } catch (error) {
+      console.error("Error fetching policy types:", error);
+      res.status(500).json({ message: "Poliçe türleri alınamadı" });
+    }
+  });
+
   app.get("/api/customer-profiles", isAuthenticated, async (req, res) => {
     try {
       const page = parseInt(req.query.page as string) || 1;
@@ -1101,6 +1111,7 @@ Sadece JSON objesi döndür, başka metin ekleme.`;
       const search = req.query.search as string;
       const city = req.query.city as string;
       const customerType = req.query.customerType as string;
+      const policyType = req.query.policyType as string;
       
       const result = await storage.getCustomerProfilesPaginated({
         page,
@@ -1108,6 +1119,7 @@ Sadece JSON objesi döndür, başka metin ekleme.`;
         search,
         city,
         customerType,
+        policyType,
       });
       
       res.json(result);

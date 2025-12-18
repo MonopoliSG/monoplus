@@ -25,7 +25,7 @@ import {
   type InsertAiCustomerPrediction,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, sql, and, gte, lte, like, ilike, or, inArray } from "drizzle-orm";
+import { eq, sql, and, gte, lte, like, ilike, or, inArray, isNotNull } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -113,7 +113,9 @@ export interface IStorage {
     search?: string;
     city?: string;
     customerType?: string;
+    policyType?: string;
   }): Promise<{ profiles: CustomerProfile[]; total: number; page: number; totalPages: number }>;
+  getDistinctPolicyTypes(): Promise<string[]>;
   getCustomerProfile(id: string): Promise<CustomerProfile | undefined>;
   getCustomerProfileByHesapKodu(hesapKodu: string): Promise<CustomerProfile | undefined>;
   getCustomerPolicies(hesapKodu: string): Promise<Customer[]>;
@@ -678,12 +680,23 @@ export class DatabaseStorage implements IStorage {
   }
   
   // Customer Profile Methods
+  async getDistinctPolicyTypes(): Promise<string[]> {
+    const result = await db
+      .selectDistinct({ policeTuru: customers.policeTuru })
+      .from(customers)
+      .where(isNotNull(customers.policeTuru))
+      .orderBy(customers.policeTuru);
+    
+    return result.map(r => r.policeTuru).filter((v): v is string => v !== null);
+  }
+
   async getCustomerProfilesPaginated(filters: {
     page: number;
     limit: number;
     search?: string;
     city?: string;
     customerType?: string;
+    policyType?: string;
   }): Promise<{ profiles: CustomerProfile[]; total: number; page: number; totalPages: number }> {
     const conditions = [];
     
@@ -700,15 +713,30 @@ export class DatabaseStorage implements IStorage {
       );
     }
     
-    if (filters.city) {
+    if (filters.city && filters.city !== "all") {
       conditions.push(ilike(customerProfiles.sehir, `%${filters.city}%`));
     }
     
-    if (filters.customerType) {
+    if (filters.customerType && filters.customerType !== "all") {
       conditions.push(ilike(customerProfiles.musteriTipi, `%${filters.customerType}%`));
     }
     
     const offset = (filters.page - 1) * filters.limit;
+    
+    if (filters.policyType && filters.policyType !== "all") {
+      const hesapKodlari = await db
+        .selectDistinct({ hesapKodu: customers.hesapKodu })
+        .from(customers)
+        .where(eq(customers.policeTuru, filters.policyType));
+      
+      const kodlar = hesapKodlari.map(h => h.hesapKodu).filter((v): v is string => v !== null);
+      
+      if (kodlar.length === 0) {
+        return { profiles: [], total: 0, page: filters.page, totalPages: 0 };
+      }
+      
+      conditions.push(inArray(customerProfiles.hesapKodu, kodlar));
+    }
     
     const countResult = await db
       .select({ count: sql<number>`count(*)` })

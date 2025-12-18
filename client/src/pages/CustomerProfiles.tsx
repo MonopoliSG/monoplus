@@ -53,10 +53,15 @@ export default function CustomerProfiles() {
   const [search, setSearch] = useState(searchParams.get("search") || "");
   const [city, setCity] = useState(searchParams.get("city") || "");
   const [customerType, setCustomerType] = useState(searchParams.get("customerType") || "");
+  const [policyType, setPolicyType] = useState(searchParams.get("policyType") || "");
   const [page, setPage] = useState(parseInt(searchParams.get("page") || "1"));
 
+  const { data: policyTypes } = useQuery<string[]>({
+    queryKey: ["/api/customer-profiles/policy-types"],
+  });
+
   const { data, isLoading, refetch } = useQuery<PaginatedProfilesResponse>({
-    queryKey: ["/api/customer-profiles", { page, search, city, customerType }],
+    queryKey: ["/api/customer-profiles", { page, search, city, customerType, policyType }],
     queryFn: async () => {
       const params = new URLSearchParams();
       params.set("page", page.toString());
@@ -64,6 +69,7 @@ export default function CustomerProfiles() {
       if (search) params.set("search", search);
       if (city) params.set("city", city);
       if (customerType) params.set("customerType", customerType);
+      if (policyType) params.set("policyType", policyType);
       
       const response = await fetch(`/api/customer-profiles?${params.toString()}`, {
         credentials: "include",
@@ -99,11 +105,12 @@ export default function CustomerProfiles() {
     if (search) params.set("search", search);
     if (city) params.set("city", city);
     if (customerType) params.set("customerType", customerType);
+    if (policyType) params.set("policyType", policyType);
     if (page > 1) params.set("page", page.toString());
     
     const newUrl = params.toString() ? `/customer-profiles?${params.toString()}` : "/customer-profiles";
     setLocation(newUrl, { replace: true });
-  }, [search, city, customerType, page, setLocation]);
+  }, [search, city, customerType, policyType, page, setLocation]);
 
   const handleSearch = () => {
     setPage(1);
@@ -180,6 +187,21 @@ export default function CustomerProfiles() {
                   <SelectItem value="all">Tümü</SelectItem>
                   <SelectItem value="Bireysel">Bireysel</SelectItem>
                   <SelectItem value="Kurumsal">Kurumsal</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="w-[220px]">
+              <Select value={policyType} onValueChange={setPolicyType}>
+                <SelectTrigger data-testid="select-policy-type">
+                  <SelectValue placeholder="Poliçe Türü" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tüm Poliçe Türleri</SelectItem>
+                  {policyTypes?.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {type}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
