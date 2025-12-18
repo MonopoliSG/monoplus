@@ -20,49 +20,109 @@ import { isUnauthorizedError } from "@/lib/authUtils";
 import type { AiCustomerPrediction, AiAnalysis } from "@shared/schema";
 import { buildCustomerFilterUrl } from "./Customers";
 
+// Product name mapping for Turkish insurance products
+const productNameMapping: Record<string, string> = {
+  "kasko": "Oto Kaza (Kasko)",
+  "trafik": "Oto Kaza (Trafik)",
+  "dask": "Dask",
+  "sağlık": "Sağlık",
+  "saglik": "Sağlık",
+  "konut": "Yangın (Konut)",
+  "yangın": "Yangın (Konut)",
+  "yangin": "Yangın (Konut)",
+  "seyahat": "Seyahat Sağlık",
+  "ferdi kaza": "Ferdi Kaza",
+  "nakliyat": "Nakliyat",
+  "işyeri": "Yangın (İşyeri)",
+  "isyeri": "Yangın (İşyeri)",
+  "mühendislik": "Mühendislik",
+  "muhendislik": "Mühendislik",
+  "sorumluluk": "Sorumluluk",
+  "hayat": "Hayat",
+};
+
+// Helper to find product name from text
+function findProductInText(text: string): string | null {
+  const lowerText = text.toLowerCase().replace(/i̇/g, 'i').replace(/ı/g, 'i');
+  
+  // Check multi-word products first (like "ferdi kaza")
+  for (const [key, value] of Object.entries(productNameMapping)) {
+    if (key.includes(" ") && lowerText.includes(key)) {
+      return value;
+    }
+  }
+  
+  // Then check single-word products
+  for (const [key, value] of Object.entries(productNameMapping)) {
+    if (!key.includes(" ") && lowerText.includes(key)) {
+      return value;
+    }
+  }
+  
+  return null;
+}
+
 // Parse segment title and metadata to build appropriate filters
 function buildSegmentFilterUrl(segmentTitle: string, metadata?: { city?: string; branch?: string; customerType?: string }): string {
-  const title = segmentTitle.toLowerCase().replace(/i̇/g, 'i').replace(/ı/g, 'i');
+  const title = segmentTitle;
+  const lowerTitle = title.toLowerCase().replace(/i̇/g, 'i').replace(/ı/g, 'i');
   const filters: Parameters<typeof buildCustomerFilterUrl>[0] = {};
   
   // Use metadata if available (more accurate)
   if (metadata?.city) {
     filters.city = metadata.city;
   }
-  if (metadata?.branch) {
-    filters.branch = metadata.branch;
-  }
   if (metadata?.customerType) {
     filters.customerType = metadata.customerType;
   }
   
-  // Fallback: detect customer type from title if not in metadata
-  if (!filters.customerType) {
-    if (title.includes("kurumsal") || title.includes("tüzel")) {
-      filters.customerType = "kurumsal";
-    } else if (title.includes("bireysel") || title.includes("gerçek")) {
-      filters.customerType = "bireysel";
+  // Advanced pattern detection: "X Olan" (has product) and "X Olmayan" (doesn't have product)
+  // Pattern: "Kasko Sigortası Olan, Trafik Sigortası Olmayan Müşteriler"
+  // Pattern: "Kasko Sigortası Olan ve Trafik Sigortası Olmayan Müşteriler"
+  
+  // Split by comma and "ve" (and) to handle multiple conditions
+  const parts = title.split(/[,،]|\s+ve\s+/i);
+  
+  for (const part of parts) {
+    const trimmedPart = part.trim();
+    const lowerPart = trimmedPart.toLowerCase().replace(/i̇/g, 'i').replace(/ı/g, 'i');
+    
+    // Check for "Olmayan" pattern (NOT has product)
+    if (lowerPart.includes("olmayan") || lowerPart.includes(" yok") || lowerPart.includes("sahip olmayan")) {
+      const product = findProductInText(trimmedPart);
+      if (product && !filters.notHasBranch) {
+        filters.notHasBranch = product;
+      }
+    }
+    // Check for "Olan" pattern (HAS product) - but not if it contains "olmayan"
+    else if ((lowerPart.includes(" olan") || lowerPart.includes("sahip") || lowerPart.includes(" var")) && 
+             !lowerPart.includes("olmayan")) {
+      const product = findProductInText(trimmedPart);
+      if (product && !filters.hasBranch) {
+        filters.hasBranch = product;
+      }
     }
   }
   
-  // Fallback: detect branch/product from title if not in metadata
-  if (!filters.branch) {
-    if (title.includes("kasko")) {
-      filters.branch = "Oto Kaza (Kasko)";
-    } else if (title.includes("trafik")) {
-      filters.branch = "Oto Kaza (Trafik)";
-    } else if (title.includes("dask")) {
-      filters.branch = "Dask";
-    } else if (title.includes("sağlık") || title.includes("saglik")) {
-      filters.branch = "Sağlık";
-    } else if (title.includes("yangın") || title.includes("yangin") || title.includes("konut")) {
-      filters.branch = "Yangın (Konut)";
-    } else if (title.includes("seyahat")) {
-      filters.branch = "Seyahat Sağlık";
-    } else if (title.includes("ferdi") || title.includes("kaza")) {
-      filters.branch = "Ferdi Kaza";
-    } else if (title.includes("nakliyat")) {
-      filters.branch = "Nakliyat";
+  // If no hasBranch/notHasBranch patterns found, use metadata branch or detect from title
+  if (!filters.hasBranch && !filters.notHasBranch) {
+    if (metadata?.branch) {
+      filters.branch = metadata.branch;
+    } else {
+      // Simple branch detection for segments without "olan/olmayan" pattern
+      const product = findProductInText(title);
+      if (product) {
+        filters.branch = product;
+      }
+    }
+  }
+  
+  // Detect customer type from title if not in metadata
+  if (!filters.customerType) {
+    if (lowerTitle.includes("kurumsal") || lowerTitle.includes("tüzel")) {
+      filters.customerType = "kurumsal";
+    } else if (lowerTitle.includes("bireysel") || lowerTitle.includes("gerçek")) {
+      filters.customerType = "bireysel";
     }
   }
   
@@ -74,11 +134,17 @@ function buildSegmentFilterUrl(segmentTitle: string, metadata?: { city?: string;
       "denizli", "şanlıurfa", "malatya", "trabzon", "erzurum", "van"
     ];
     for (const city of turkishCities) {
-      if (title.includes(city) || title.includes(city.toUpperCase())) {
+      if (lowerTitle.includes(city)) {
         filters.city = city.charAt(0).toUpperCase() + city.slice(1).toUpperCase();
         break;
       }
     }
+  }
+  
+  // Detect age-based filters (e.g., "25 yaş üstü", "65 yaş üzeri")
+  const ageMatch = lowerTitle.match(/(\d+)\s*yaş\s*(üstü|üzeri|ve üzeri|ve üstü)/);
+  if (ageMatch) {
+    filters.minAge = parseInt(ageMatch[1]);
   }
   
   return buildCustomerFilterUrl(filters);
