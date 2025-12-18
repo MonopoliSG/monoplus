@@ -2,8 +2,9 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAdminAuth, isAuthenticated } from "./adminAuth";
-import { insertCustomerSchema, insertProductSchema, insertSegmentSchema, insertCampaignSchema, csvColumnMapping, type InsertCustomer } from "@shared/schema";
+import { insertCustomerSchema, insertProductSchema, insertSegmentSchema, insertCampaignSchema, csvColumnMapping, type InsertCustomer, type InsertAiCustomerPrediction } from "@shared/schema";
 import OpenAI from "openai";
+import ExcelJS from "exceljs";
 
 // Date fields in the customer schema
 const dateFields = new Set([
@@ -570,6 +571,157 @@ Sadece JSON array döndür.`;
     }
   });
 
+  // Get customer predictions with filters
+  app.get("/api/ai/predictions", isAuthenticated, async (req, res) => {
+    try {
+      const { analysisType, minProbability, maxProbability, search, product, city } = req.query;
+      
+      const predictions = await storage.getCustomerPredictions({
+        analysisType: analysisType as string,
+        minProbability: minProbability ? parseInt(minProbability as string) : undefined,
+        maxProbability: maxProbability ? parseInt(maxProbability as string) : undefined,
+        search: search as string,
+        product: product as string,
+        city: city as string,
+      });
+      
+      res.json(predictions);
+    } catch (error) {
+      console.error("Error getting predictions:", error);
+      res.status(500).json({ message: "Failed to get predictions" });
+    }
+  });
+
+  // Run customer-specific AI analysis
+  app.post("/api/ai/analyze-customers", isAuthenticated, async (req, res) => {
+    try {
+      const { type } = req.body;
+      
+      if (!openai) {
+        return res.status(503).json({ message: "AI özellikleri aktif değil. OPENAI_API_KEY gerekli." });
+      }
+
+      const customers = await storage.getAllCustomers();
+      if (customers.length === 0) {
+        return res.status(400).json({ message: "Analiz için müşteri bulunamadı" });
+      }
+
+      // Delete existing predictions for this type
+      await storage.deleteCustomerPredictionsByType(type);
+
+      // For large datasets, sample customers intelligently
+      const sampleSize = Math.min(200, customers.length);
+      const sampledCustomers = customers.slice(0, sampleSize);
+
+      const prompt = getCustomerPredictionPrompt(type, sampledCustomers);
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [{ role: "user", content: prompt }],
+        max_completion_tokens: 4000,
+        temperature: 0.3,
+      });
+
+      const content = response.choices[0]?.message?.content || "[]";
+      let predictions: InsertAiCustomerPrediction[] = [];
+
+      try {
+        const jsonMatch = content.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          const rawPredictions = JSON.parse(jsonMatch[0]);
+          predictions = rawPredictions.map((p: any) => ({
+            analysisType: type,
+            customerId: p.customerId || "",
+            customerName: p.customerName || "",
+            currentProduct: p.currentProduct || "",
+            suggestedProduct: p.suggestedProduct || null,
+            probability: Math.min(100, Math.max(0, parseInt(p.probability) || 50)),
+            reason: p.reason || "",
+            city: p.city || null,
+          })).filter((p: any) => p.customerId && p.customerName);
+        }
+      } catch (parseError) {
+        console.error("Error parsing AI response:", parseError);
+      }
+
+      if (predictions.length > 0) {
+        await storage.createCustomerPredictions(predictions);
+      }
+
+      const savedPredictions = await storage.getCustomerPredictions({ analysisType: type });
+      res.json({ success: true, count: savedPredictions.length, predictions: savedPredictions });
+    } catch (error) {
+      console.error("Error analyzing customers:", error);
+      res.status(500).json({ message: "Müşteri analizi başarısız oldu" });
+    }
+  });
+
+  // Export predictions to Excel
+  app.post("/api/ai/predictions/export", isAuthenticated, async (req, res) => {
+    try {
+      const { analysisType, minProbability, maxProbability, search, product, city } = req.body;
+      
+      const predictions = await storage.getCustomerPredictions({
+        analysisType,
+        minProbability: minProbability !== undefined ? parseInt(minProbability) : undefined,
+        maxProbability: maxProbability !== undefined ? parseInt(maxProbability) : undefined,
+        search,
+        product,
+        city,
+      });
+
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet("Tahminler");
+
+      if (analysisType === "churn_prediction") {
+        worksheet.columns = [
+          { header: "Müşteri Adı", key: "customerName", width: 30 },
+          { header: "Mevcut Ürün", key: "currentProduct", width: 20 },
+          { header: "İptal Olasılığı (%)", key: "probability", width: 18 },
+          { header: "Potansiyel İptal Sebebi", key: "reason", width: 50 },
+          { header: "Şehir", key: "city", width: 15 },
+        ];
+      } else {
+        worksheet.columns = [
+          { header: "Müşteri Adı", key: "customerName", width: 30 },
+          { header: "Mevcut Ürün", key: "currentProduct", width: 20 },
+          { header: "Önerilen Ürün", key: "suggestedProduct", width: 20 },
+          { header: "Satış Olasılığı (%)", key: "probability", width: 18 },
+          { header: "Satış Argümanı", key: "reason", width: 50 },
+          { header: "Şehir", key: "city", width: 15 },
+        ];
+      }
+
+      predictions.forEach((p) => {
+        worksheet.addRow({
+          customerName: p.customerName,
+          currentProduct: p.currentProduct,
+          suggestedProduct: p.suggestedProduct,
+          probability: p.probability,
+          reason: p.reason,
+          city: p.city,
+        });
+      });
+
+      // Style header row
+      worksheet.getRow(1).font = { bold: true };
+      worksheet.getRow(1).fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FFE0E0E0" },
+      };
+
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename=tahminler_${analysisType}_${Date.now()}.xlsx`);
+
+      await workbook.xlsx.write(res);
+      res.end();
+    } catch (error) {
+      console.error("Error exporting predictions:", error);
+      res.status(500).json({ message: "Export başarısız oldu" });
+    }
+  });
+
   return httpServer;
 }
 
@@ -676,4 +828,69 @@ Sadece JSON array döndür.`;
     default:
       return `Müşteri portföyünü genel olarak analiz et. Toplam ${summary.total} müşteri var.`;
   }
+}
+
+function getCustomerPredictionPrompt(type: string, customers: any[]): string {
+  const customerData = customers.slice(0, 50).map((c) => ({
+    id: c.id,
+    name: c.musteriIsmi,
+    product: c.anaBrans,
+    city: c.sehir,
+    premium: c.brut,
+    cancelReason: c.iptalSebebi || c.iptalNedeni,
+  }));
+
+  if (type === "churn_prediction") {
+    return `Sen deneyimli bir sigorta uzmanısın. Aşağıdaki müşterilerin iptal risklerini analiz et.
+
+Müşteri listesi:
+${JSON.stringify(customerData, null, 2)}
+
+Her müşteri için iptal riski tahmini yap. Şu JSON formatında döndür:
+[
+  {
+    "customerId": "müşteri id",
+    "customerName": "müşteri adı",
+    "currentProduct": "mevcut sigorta ürünü",
+    "probability": 75,
+    "reason": "Potansiyel iptal sebebi açıklaması",
+    "city": "şehir"
+  }
+]
+
+Kurallar:
+- probability 0-100 arası olasılık yüzdesi olmalı
+- En yüksek riskli müşterilerden başla
+- reason alanına müşterinin neden iptal edebileceğini açıkla
+- Sadece JSON array döndür, başka metin ekleme`;
+  }
+
+  if (type === "cross_sell") {
+    return `Sen deneyimli bir sigorta uzmanısın. Aşağıdaki müşterilere çapraz satış fırsatlarını analiz et.
+
+Müşteri listesi:
+${JSON.stringify(customerData, null, 2)}
+
+Her müşteri için çapraz satış önerisi yap. Şu JSON formatında döndür:
+[
+  {
+    "customerId": "müşteri id",
+    "customerName": "müşteri adı",
+    "currentProduct": "mevcut sigorta ürünü",
+    "suggestedProduct": "önerilen yeni ürün",
+    "probability": 85,
+    "reason": "Neden bu ürünü satın alabilir açıklaması",
+    "city": "şehir"
+  }
+]
+
+Kurallar:
+- probability 0-100 arası satış başarı olasılığı olmalı
+- suggestedProduct olarak Kasko, Trafik, Sağlık, Konut, DASK, Ferdi Kaza, Seyahat gibi ürünler öner
+- En yüksek satış potansiyeli olan müşterilerden başla
+- reason alanına satış argümanını açıkla
+- Sadece JSON array döndür, başka metin ekleme`;
+  }
+
+  return `Müşteri portföyünü analiz et. ${customers.length} müşteri var.`;
 }
