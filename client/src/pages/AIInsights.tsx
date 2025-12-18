@@ -181,46 +181,6 @@ export default function AIInsights() {
           </h1>
           <p className="text-muted-foreground">Müşteri bazında yapay zeka destekli tahminler</p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <Button
-            variant="outline"
-            onClick={() => runChurnMutation.mutate()}
-            disabled={isAnalyzing}
-            data-testid="button-run-churn"
-          >
-            {runChurnMutation.isPending ? (
-              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <AlertTriangle className="h-4 w-4 mr-2" />
-            )}
-            İptal Tahmini
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => runCrossSellMutation.mutate()}
-            disabled={isAnalyzing}
-            data-testid="button-run-crosssell"
-          >
-            {runCrossSellMutation.isPending ? (
-              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <ShoppingCart className="h-4 w-4 mr-2" />
-            )}
-            Çapraz Satış
-          </Button>
-          <Button
-            onClick={() => runSegmentMutation.mutate()}
-            disabled={isAnalyzing}
-            data-testid="button-run-segmentation"
-          >
-            {runSegmentMutation.isPending ? (
-              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <Sparkles className="h-4 w-4 mr-2" />
-            )}
-            Segmentasyon
-          </Button>
-        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -274,7 +234,12 @@ export default function AIInsights() {
             filters={churnFilters}
             setFilters={setChurnFilters}
             onExport={() => exportToExcel("churn_prediction", churnFilters)}
+            onRunAnalysis={() => runChurnMutation.mutate()}
             predictions={churnPredictions}
+            isAnalyzing={isAnalyzing}
+            analysisIcon={<AlertTriangle className="h-4 w-4 mr-2" />}
+            analysisLabel="İptal Tahmini Çalıştır"
+            analysisTestId="button-run-churn"
           />
           
           {churnLoading ? (
@@ -288,7 +253,7 @@ export default function AIInsights() {
               <AlertTriangle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
               <h3 className="text-lg font-medium mb-2">Henüz iptal tahmini yok</h3>
               <p className="text-muted-foreground mb-4">
-                Üstteki "İptal Tahmini" butonuna tıklayarak müşteri bazında analiz yapabilirsiniz.
+                Yukarıdaki "İptal Tahmini Çalıştır" butonuna tıklayarak müşteri bazında analiz yapabilirsiniz.
               </p>
             </Card>
           ) : (
@@ -304,7 +269,12 @@ export default function AIInsights() {
             filters={crossSellFilters}
             setFilters={setCrossSellFilters}
             onExport={() => exportToExcel("cross_sell", crossSellFilters)}
+            onRunAnalysis={() => runCrossSellMutation.mutate()}
             predictions={crossSellPredictions}
+            isAnalyzing={isAnalyzing}
+            analysisIcon={<ShoppingCart className="h-4 w-4 mr-2" />}
+            analysisLabel="Çapraz Satış Analizi"
+            analysisTestId="button-run-crosssell"
           />
           
           {crossSellLoading ? (
@@ -318,7 +288,7 @@ export default function AIInsights() {
               <ShoppingCart className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
               <h3 className="text-lg font-medium mb-2">Henüz çapraz satış analizi yok</h3>
               <p className="text-muted-foreground mb-4">
-                Üstteki "Çapraz Satış" butonuna tıklayarak müşteri bazında analiz yapabilirsiniz.
+                Yukarıdaki "Çapraz Satış Analizi" butonuna tıklayarak müşteri bazında analiz yapabilirsiniz.
               </p>
             </Card>
           ) : (
@@ -330,6 +300,30 @@ export default function AIInsights() {
         </TabsContent>
 
         <TabsContent value="segments" className="space-y-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4" />
+                  Segment Analizleri
+                </CardTitle>
+                <Button
+                  size="sm"
+                  onClick={() => runSegmentMutation.mutate()}
+                  disabled={isAnalyzing}
+                  data-testid="button-run-segmentation"
+                >
+                  {runSegmentMutation.isPending ? (
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-4 w-4 mr-2" />
+                  )}
+                  Segmentasyon Çalıştır
+                </Button>
+              </div>
+            </CardHeader>
+          </Card>
+          
           {segmentLoading ? (
             <div className="animate-pulse space-y-2">
               {[1, 2, 3].map((i) => (
@@ -341,7 +335,7 @@ export default function AIInsights() {
               <TrendingUp className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
               <h3 className="text-lg font-medium mb-2">Henüz segment analizi yok</h3>
               <p className="text-muted-foreground mb-4">
-                Üstteki "Segmentasyon" butonuna tıklayarak analiz yapabilirsiniz.
+                Yukarıdaki "Segmentasyon Çalıştır" butonuna tıklayarak analiz yapabilirsiniz.
               </p>
             </Card>
           ) : (
@@ -374,12 +368,22 @@ function PredictionFilters({
   filters,
   setFilters,
   onExport,
+  onRunAnalysis,
   predictions,
+  isAnalyzing,
+  analysisIcon,
+  analysisLabel,
+  analysisTestId,
 }: {
   filters: Filters;
   setFilters: (f: Filters) => void;
   onExport: () => void;
+  onRunAnalysis: () => void;
   predictions: AiCustomerPrediction[];
+  isAnalyzing: boolean;
+  analysisIcon: React.ReactNode;
+  analysisLabel: string;
+  analysisTestId: string;
 }) {
   const products = Array.from(new Set(predictions.map((p) => p.currentProduct).filter(Boolean)));
   const cities = Array.from(new Set(predictions.map((p) => p.city).filter(Boolean)));
@@ -392,16 +396,27 @@ function PredictionFilters({
             <Filter className="h-4 w-4" />
             Filtreler
           </CardTitle>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onExport}
-            disabled={predictions.length === 0}
-            data-testid="button-export-excel"
-          >
-            <FileSpreadsheet className="h-4 w-4 mr-2" />
-            Excel'e Aktar ({predictions.length})
-          </Button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onExport}
+              disabled={predictions.length === 0}
+              data-testid="button-export-excel"
+            >
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              Excel ({predictions.length})
+            </Button>
+            <Button
+              size="sm"
+              onClick={onRunAnalysis}
+              disabled={isAnalyzing}
+              data-testid={analysisTestId}
+            >
+              {isAnalyzing ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : analysisIcon}
+              {analysisLabel}
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
