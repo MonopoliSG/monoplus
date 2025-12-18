@@ -5,6 +5,7 @@ import {
   segments,
   campaigns,
   aiAnalyses,
+  aiCustomerPredictions,
   type User,
   type UpsertUser,
   type Customer,
@@ -17,6 +18,8 @@ import {
   type InsertCampaign,
   type AiAnalysis,
   type InsertAiAnalysis,
+  type AiCustomerPrediction,
+  type InsertAiCustomerPrediction,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, sql, and, gte, lte, like, or, inArray } from "drizzle-orm";
@@ -58,6 +61,17 @@ export interface IStorage {
   getAllAiAnalyses(): Promise<AiAnalysis[]>;
   createAiAnalysis(analysis: InsertAiAnalysis): Promise<AiAnalysis>;
   deleteAiAnalysesByType(analysisType: string): Promise<void>;
+  
+  getCustomerPredictions(filters: {
+    analysisType?: string;
+    minProbability?: number;
+    maxProbability?: number;
+    search?: string;
+    product?: string;
+    city?: string;
+  }): Promise<AiCustomerPrediction[]>;
+  createCustomerPredictions(predictions: InsertAiCustomerPrediction[]): Promise<AiCustomerPrediction[]>;
+  deleteCustomerPredictionsByType(analysisType: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -265,6 +279,55 @@ export class DatabaseStorage implements IStorage {
 
   async deleteAiAnalysesByType(analysisType: string): Promise<void> {
     await db.delete(aiAnalyses).where(eq(aiAnalyses.analysisType, analysisType));
+  }
+
+  async getCustomerPredictions(filters: {
+    analysisType?: string;
+    minProbability?: number;
+    maxProbability?: number;
+    search?: string;
+    product?: string;
+    city?: string;
+  }): Promise<AiCustomerPrediction[]> {
+    const conditions = [];
+    
+    if (filters.analysisType) {
+      conditions.push(eq(aiCustomerPredictions.analysisType, filters.analysisType));
+    }
+    if (filters.minProbability !== undefined) {
+      conditions.push(gte(aiCustomerPredictions.probability, filters.minProbability));
+    }
+    if (filters.maxProbability !== undefined) {
+      conditions.push(lte(aiCustomerPredictions.probability, filters.maxProbability));
+    }
+    if (filters.search) {
+      conditions.push(like(aiCustomerPredictions.customerName, `%${filters.search}%`));
+    }
+    if (filters.product) {
+      conditions.push(eq(aiCustomerPredictions.currentProduct, filters.product));
+    }
+    if (filters.city) {
+      conditions.push(eq(aiCustomerPredictions.city, filters.city));
+    }
+
+    if (conditions.length === 0) {
+      return await db.select().from(aiCustomerPredictions).orderBy(sql`${aiCustomerPredictions.probability} DESC`);
+    }
+    
+    return await db
+      .select()
+      .from(aiCustomerPredictions)
+      .where(and(...conditions))
+      .orderBy(sql`${aiCustomerPredictions.probability} DESC`);
+  }
+
+  async createCustomerPredictions(predictions: InsertAiCustomerPrediction[]): Promise<AiCustomerPrediction[]> {
+    if (predictions.length === 0) return [];
+    return await db.insert(aiCustomerPredictions).values(predictions).returning();
+  }
+
+  async deleteCustomerPredictionsByType(analysisType: string): Promise<void> {
+    await db.delete(aiCustomerPredictions).where(eq(aiCustomerPredictions.analysisType, analysisType));
   }
 }
 
