@@ -61,6 +61,7 @@ export interface IStorage {
   
   getAllAiAnalyses(): Promise<AiAnalysis[]>;
   createAiAnalysis(analysis: InsertAiAnalysis): Promise<AiAnalysis>;
+  deleteAiAnalysis(id: string): Promise<void>;
   deleteAiAnalysesByType(analysisType: string): Promise<void>;
   
   getCustomerPredictions(filters: {
@@ -300,6 +301,10 @@ export class DatabaseStorage implements IStorage {
   async createAiAnalysis(analysis: InsertAiAnalysis): Promise<AiAnalysis> {
     const [newAnalysis] = await db.insert(aiAnalyses).values(analysis).returning();
     return newAnalysis;
+  }
+
+  async deleteAiAnalysis(id: string): Promise<void> {
+    await db.delete(aiAnalyses).where(eq(aiAnalyses.id, id));
   }
 
   async deleteAiAnalysesByType(analysisType: string): Promise<void> {

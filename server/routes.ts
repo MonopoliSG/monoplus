@@ -610,6 +610,15 @@ Sadece JSON array döndür, başka açıklama ekleme.`;
     }
   });
 
+  app.delete("/api/ai/analyses/:id", isAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteAiAnalysis(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: "Analiz silinemedi" });
+    }
+  });
+
   app.post("/api/ai/analyze", isAuthenticated, async (req, res) => {
     try {
       const { type } = req.body;
@@ -968,6 +977,12 @@ Sadece JSON array döndür.`;
         endDate: c.bitisTarihi,
       }));
 
+      // Get available branches and cities for filtering
+      const branchSet = new Set(customers.map((c) => c.anaBrans).filter(Boolean));
+      const citySet = new Set(customers.map((c) => c.sehir).filter(Boolean));
+      const availableBranches = Array.from(branchSet);
+      const availableCities = Array.from(citySet);
+
       const systemPrompt = `Sen deneyimli bir sigorta uzmanısın. Kullanıcının belirttiği kriterlere göre müşteri segmenti analizi yap.
 
 Müşteri verisi (örnek ${sampleSize} müşteri, toplam ${customers.length} müşteri):
@@ -975,13 +990,35 @@ ${JSON.stringify(sampledCustomers.slice(0, 30), null, 2)}
 
 Kullanıcının kriterleri: ${prompt}
 
+ÖNEMLİ: Segment oluştururken SADECE aşağıdaki filtreleme seçeneklerini kullanabilirsin:
+- city: Şehir (Kullanılabilir değerler: ${availableCities.slice(0, 20).join(", ")})
+- branch: Ürün/Branş (Kullanılabilir değerler: ${availableBranches.join(", ")})
+- customerType: Müşteri tipi ("bireysel" veya "kurumsal")
+- hasBranch: Bu ürüne sahip müşteriler (örn: "Oto Kaza (Kasko)")
+- notHasBranch: Bu ürüne sahip OLMAYAN müşteriler (örn: "Oto Kaza (Trafik)")
+- minAge: Minimum yaş (sayı, örn: 25)
+
 Bu kriterlere göre bir segment analizi oluştur. Şu JSON formatında döndür:
 {
-  "title": "Segment adı (kısa ve açıklayıcı)",
+  "title": "Segment adı - Türkçe ve açıklayıcı olmalı. Örnek formatlar: 'Kasko Sigortası Olan, Trafik Sigortası Olmayan Müşteriler', 'İstanbul Bireysel Sağlık Müşterileri', '40 Yaş Üstü DASK Müşterileri'",
   "insight": "Segment özellikleri, davranış kalıpları ve pazarlama önerileri (detaylı)",
   "confidence": 85,
-  "metadata": { "customerCount": 500, "avgPremium": 5000 }
+  "metadata": { 
+    "customerCount": 500, 
+    "avgPremium": 5000 
+  },
+  "filters": {
+    "city": "İSTANBUL",
+    "branch": "Sağlık",
+    "customerType": "bireysel",
+    "hasBranch": "Oto Kaza (Kasko)",
+    "notHasBranch": "Oto Kaza (Trafik)",
+    "minAge": 40
+  }
 }
+
+NOT: "filters" objesinde SADECE kullanıcının isteğine uygun filtreleri dahil et, gereksiz olanları ekleme.
+Segment başlığı Türkçe olmalı ve filtreleri yansıtmalı (örn: "X Olan", "Y Olmayan", "Z Yaş Üstü" gibi kalıplar kullan).
 
 Sadece JSON objesi döndür, başka metin ekleme.`;
 
@@ -998,6 +1035,12 @@ Sadece JSON objesi döndür, başka metin ekleme.`;
       try {
         const segmentData = JSON.parse(content);
         
+        // Merge filters into metadata for URL generation
+        const metadata = {
+          ...(segmentData.metadata || { customerCount: 0, avgPremium: 0 }),
+          filters: segmentData.filters || {},
+        };
+        
         const analysis: InsertAiAnalysis = {
           analysisType: "segmentation",
           title: segmentData.title || "Özel Segment",
@@ -1005,7 +1048,7 @@ Sadece JSON objesi döndür, başka metin ekleme.`;
           confidence: Math.min(100, Math.max(0, parseInt(segmentData.confidence) || 75)),
           category: "Segmentasyon",
           customerIds: [],
-          metadata: segmentData.metadata || { customerCount: 0, avgPremium: 0 },
+          metadata,
           isActive: true,
         };
 

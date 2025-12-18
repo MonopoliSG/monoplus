@@ -13,7 +13,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
-import { Sparkles, RefreshCw, TrendingUp, AlertTriangle, ShoppingCart, FileSpreadsheet, Users, ExternalLink, Search, Filter, Wand2 } from "lucide-react";
+import { Sparkles, RefreshCw, TrendingUp, AlertTriangle, ShoppingCart, FileSpreadsheet, Users, ExternalLink, Search, Filter, Wand2, Trash2 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
@@ -62,13 +63,44 @@ function findProductInText(text: string): string | null {
   return null;
 }
 
+// Extended metadata type with filters from AI
+interface SegmentMetadata {
+  city?: string;
+  branch?: string;
+  customerType?: string;
+  filters?: {
+    city?: string;
+    branch?: string;
+    customerType?: string;
+    hasBranch?: string;
+    notHasBranch?: string;
+    minAge?: number;
+  };
+}
+
 // Parse segment title and metadata to build appropriate filters
-function buildSegmentFilterUrl(segmentTitle: string, metadata?: { city?: string; branch?: string; customerType?: string }): string {
+function buildSegmentFilterUrl(segmentTitle: string, metadata?: SegmentMetadata): string {
   const title = segmentTitle;
   const lowerTitle = title.toLowerCase().replace(/i̇/g, 'i').replace(/ı/g, 'i');
   const filters: Parameters<typeof buildCustomerFilterUrl>[0] = {};
   
-  // Use metadata if available (more accurate)
+  // Priority 1: Use filters from metadata if available (most accurate - from AI response)
+  if (metadata?.filters) {
+    const f = metadata.filters;
+    if (f.city) filters.city = f.city;
+    if (f.branch) filters.branch = f.branch;
+    if (f.customerType) filters.customerType = f.customerType;
+    if (f.hasBranch) filters.hasBranch = f.hasBranch;
+    if (f.notHasBranch) filters.notHasBranch = f.notHasBranch;
+    if (f.minAge) filters.minAge = f.minAge;
+    
+    // If we have filters from metadata, use them directly
+    if (Object.keys(filters).length > 0) {
+      return buildCustomerFilterUrl(filters);
+    }
+  }
+  
+  // Priority 2: Use legacy metadata fields
   if (metadata?.city) {
     filters.city = metadata.city;
   }
@@ -290,6 +322,25 @@ export default function AIInsights() {
         return;
       }
       toast({ title: "Hata", description: "Segment oluşturulamadı", variant: "destructive" });
+    },
+  });
+
+  const deleteSegmentMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiRequest("DELETE", `/api/ai/analyses/${id}`);
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ai/analyses"] });
+      toast({ title: "Segment silindi" });
+    },
+    onError: (error: Error) => {
+      if (isUnauthorizedError(error)) {
+        toast({ title: "Oturum sonlandı", variant: "destructive" });
+        setTimeout(() => { window.location.href = "/api/login"; }, 500);
+        return;
+      }
+      toast({ title: "Hata", description: "Segment silinemedi", variant: "destructive" });
     },
   });
 
@@ -531,13 +582,45 @@ export default function AIInsights() {
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
               {segmentAnalyses.map((analysis) => {
-                const metadata = analysis.metadata as { customerCount?: number; avgPremium?: number } | null;
+                const metadata = analysis.metadata as SegmentMetadata & { customerCount?: number; avgPremium?: number } | null;
                 return (
                   <Card key={analysis.id} data-testid={`card-segment-${analysis.id}`}>
                     <CardHeader>
                       <div className="flex items-center justify-between gap-2">
                         <CardTitle className="text-base">{analysis.title}</CardTitle>
-                        <Badge>AI</Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge>AI</Badge>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-7 w-7"
+                                data-testid={`button-delete-segment-${analysis.id}`}
+                              >
+                                <Trash2 className="h-4 w-4 text-muted-foreground" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Segmenti Sil</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  "{analysis.title}" segmentini silmek istediğinize emin misiniz? Bu işlem geri alınamaz.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>İptal</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => deleteSegmentMutation.mutate(analysis.id)}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  data-testid={`button-confirm-delete-${analysis.id}`}
+                                >
+                                  Sil
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
                       </div>
                       <CardDescription className="flex items-center justify-between gap-2">
                         <span>{new Date(analysis.createdAt!).toLocaleDateString("tr-TR")}</span>
@@ -548,7 +631,7 @@ export default function AIInsights() {
                     </CardHeader>
                     <CardContent className="space-y-3">
                       <p className="text-sm text-muted-foreground">{analysis.insight}</p>
-                      <Link href={buildSegmentFilterUrl(analysis.title, metadata as { city?: string; branch?: string; customerType?: string } | undefined)}>
+                      <Link href={buildSegmentFilterUrl(analysis.title, metadata || undefined)}>
                         <Button variant="outline" size="sm" className="w-full" data-testid={`button-view-segment-${analysis.id}`}>
                           <Users className="h-4 w-4 mr-2" />
                           Müşterileri Gör
