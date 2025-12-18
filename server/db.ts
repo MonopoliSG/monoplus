@@ -10,5 +10,14 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+// Configure pool with SSL support for Supabase/external databases
+const isExternalDb = process.env.DATABASE_URL.includes('supabase') || 
+                     process.env.DATABASE_URL.includes('render') ||
+                     process.env.USE_SSL === 'true';
+
+export const pool = new Pool({ 
+  connectionString: process.env.DATABASE_URL,
+  ssl: isExternalDb ? { rejectUnauthorized: false } : undefined
+});
+
 export const db = drizzle(pool, { schema });
