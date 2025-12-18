@@ -24,31 +24,98 @@ interface SegmentWithTotal extends Segment {
   totalCustomers?: number;
 }
 
-function renderFilterCriteria(criteria: unknown): React.ReactNode {
-  if (!criteria || typeof criteria !== 'object' || Array.isArray(criteria)) {
-    return null;
-  }
-  const obj = criteria as Record<string, string>;
-  return Object.keys(obj).map((key) => (
-    <Badge key={key} variant="outline" className="text-xs">
-      {key}: {String(obj[key])}
-    </Badge>
-  ));
-}
+function SegmentDetail({ segment, totalCustomers, onViewCustomers }: { 
+  segment: SegmentWithTotal; 
+  totalCustomers: number; 
+  onViewCustomers: (segment: SegmentWithTotal) => void;
+}) {
+  const criteria = segment.filterCriteria && typeof segment.filterCriteria === 'object' && !Array.isArray(segment.filterCriteria)
+    ? segment.filterCriteria as Record<string, string>
+    : null;
+  const behaviorList = segment.behaviors && Array.isArray(segment.behaviors)
+    ? segment.behaviors as Array<{ label: string; percentage: number }>
+    : null;
 
-function renderBehaviors(behaviors: unknown): React.ReactNode {
-  if (!behaviors || !Array.isArray(behaviors)) {
-    return null;
-  }
-  return (behaviors as Array<{ label: string; percentage: number }>).map((behavior, index) => (
-    <div key={index} className="space-y-1">
-      <div className="flex justify-between text-sm">
-        <span>{behavior.label}</span>
-        <span className="font-medium">{behavior.percentage}%</span>
-      </div>
-      <Progress value={behavior.percentage} className="h-1.5" />
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">{segment.name}</CardTitle>
+          <CardDescription>{segment.description}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Müşteri Sayısı</span>
+              <span className="font-medium">{segment.customerCount || 0}</span>
+            </div>
+            {totalCustomers > 0 && (
+              <Progress
+                value={((segment.customerCount || 0) / totalCustomers) * 100}
+                className="h-2"
+              />
+            )}
+          </div>
+
+          {criteria && Object.keys(criteria).length > 0 && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Filtre Kriterleri</p>
+              <div className="flex flex-wrap gap-1">
+                {Object.keys(criteria).map((key) => (
+                  <Badge key={key} variant="outline" className="text-xs">
+                    {key}: {String(criteria[key])}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {behaviorList && behaviorList.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Davranışlar</p>
+              {behaviorList.map((behavior, index) => (
+                <div key={index} className="space-y-1">
+                  <div className="flex justify-between text-sm">
+                    <span>{behavior.label}</span>
+                    <span className="font-medium">{behavior.percentage}%</span>
+                  </div>
+                  <Progress value={behavior.percentage} className="h-1.5" />
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+        <CardFooter>
+          <Button
+            className="w-full"
+            onClick={() => onViewCustomers(segment)}
+          >
+            <Users className="h-4 w-4 mr-2" />
+            Müşteri Listesine Git
+          </Button>
+        </CardFooter>
+      </Card>
+
+      {segment.aiInsight && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Sparkles className="h-4 w-4" />
+              AI Öngörüsü
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm">{segment.aiInsight}</p>
+          </CardContent>
+          <CardFooter>
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/campaigns">Kampanya Oluştur</Link>
+            </Button>
+          </CardFooter>
+        </Card>
+      )}
     </div>
-  ));
+  );
 }
 
 export default function Segments() {
@@ -304,72 +371,11 @@ export default function Segments() {
           <div className="space-y-4">
             <h2 className="text-lg font-medium">Segment Detayı</h2>
             {selectedSegment ? (
-              <div className="space-y-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">{selectedSegment.name}</CardTitle>
-                    <CardDescription>{selectedSegment.description}</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Müşteri Sayısı</span>
-                        <span className="font-medium">{selectedSegment.customerCount || 0}</span>
-                      </div>
-                      {totalCustomers > 0 && (
-                        <Progress
-                          value={((selectedSegment.customerCount || 0) / totalCustomers) * 100}
-                          className="h-2"
-                        />
-                      )}
-                    </div>
-
-                    {selectedSegment.filterCriteria && (
-                      <div className="space-y-2">
-                        <p className="text-sm font-medium">Filtre Kriterleri</p>
-                        <div className="flex flex-wrap gap-1">
-                          {renderFilterCriteria(selectedSegment.filterCriteria)}
-                        </div>
-                      </div>
-                    )}
-
-                    {selectedSegment.behaviors && Array.isArray(selectedSegment.behaviors) && (
-                      <div className="space-y-2">
-                        <p className="text-sm font-medium">Davranışlar</p>
-                        {renderBehaviors(selectedSegment.behaviors)}
-                      </div>
-                    )}
-                  </CardContent>
-                  <CardFooter>
-                    <Button
-                      className="w-full"
-                      onClick={() => handleViewCustomers(selectedSegment)}
-                    >
-                      <Users className="h-4 w-4 mr-2" />
-                      Müşteri Listesine Git
-                    </Button>
-                  </CardFooter>
-                </Card>
-
-                {selectedSegment.aiInsight && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-sm flex items-center gap-2">
-                        <Sparkles className="h-4 w-4" />
-                        AI Öngörüsü
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-sm">{selectedSegment.aiInsight}</p>
-                    </CardContent>
-                    <CardFooter>
-                      <Button variant="outline" size="sm" asChild>
-                        <Link href="/campaigns">Kampanya Oluştur</Link>
-                      </Button>
-                    </CardFooter>
-                  </Card>
-                )}
-              </div>
+              <SegmentDetail 
+                segment={selectedSegment} 
+                totalCustomers={totalCustomers} 
+                onViewCustomers={handleViewCustomers} 
+              />
             ) : (
               <Card className="p-8 text-center">
                 <p className="text-muted-foreground">Detay için bir segment seçin</p>
