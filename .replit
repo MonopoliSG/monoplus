@@ -46,3 +46,6 @@ integrations = ["javascript_openai_ai_integrations:1.0.0", "javascript_database:
 [userenv.shared]
 ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = "MonoPlus2024!"
+
+[userenv.production]
+SUPABASE_DATABASE_URL = "postgresql://postgres.wpjqsarxjktfozyhyjvk:MonoPlus1!@aws-1-eu-west-1.pooler.supabase.com:6543/postgres"
