@@ -25,7 +25,7 @@ import {
   type InsertAiCustomerPrediction,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, sql, and, gte, lte, like, ilike, or, inArray, isNotNull } from "drizzle-orm";
+import { eq, sql, and, gte, lte, like, ilike, or, inArray, isNotNull, isNull, not } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -118,6 +118,12 @@ export interface IStorage {
     product?: string;
     vehicleBrand?: string;
     hasAiAnalysis?: boolean;
+    hasBranch?: string;
+    notHasBranch?: string;
+    policyCountMin?: number;
+    policyCountMax?: number;
+    vehicleCountMin?: number;
+    vehicleAgeMax?: number;
   }): Promise<{ profiles: CustomerProfile[]; total: number; page: number; totalPages: number }>;
   getDistinctPolicyTypes(): Promise<string[]>;
   getCustomerProfile(id: string): Promise<CustomerProfile | undefined>;
@@ -707,6 +713,12 @@ export class DatabaseStorage implements IStorage {
     product?: string;
     vehicleBrand?: string;
     hasAiAnalysis?: boolean;
+    hasBranch?: string;
+    notHasBranch?: string;
+    policyCountMin?: number;
+    policyCountMax?: number;
+    vehicleCountMin?: number;
+    vehicleAgeMax?: number;
   }): Promise<{ profiles: CustomerProfile[]; total: number; page: number; totalPages: number }> {
     const conditions = [];
     
@@ -747,11 +759,104 @@ export class DatabaseStorage implements IStorage {
       conditions.push(isNotNull(customerProfiles.aiAnaliz));
     }
     
-    const offset = (filters.page - 1) * filters.limit;
-    
     if (filters.policyType && filters.policyType !== "all") {
       conditions.push(ilike(customerProfiles.sahipOlunanPoliceTurleri, `%${filters.policyType}%`));
     }
+    
+    // Backend normalization: map display names to raw branch keys
+    const branchDisplayToRaw: Record<string, string> = {
+      "Oto Kaza (Kasko)": "Kasko",
+      "Oto Kaza (Trafik)": "Trafik",
+      "Dask": "DASK",
+      "Sağlık": "Sağlık",
+      "Yangın (Konut)": "Konut",
+      "Seyahat Sağlık": "Seyahat",
+      "Ferdi Kaza": "Ferdi Kaza",
+      "Nakliyat": "Nakliyat",
+      "Yangın (İşyeri)": "İşyeri",
+      "Mühendislik": "Mühendislik",
+      "Sorumluluk": "Sorumluluk",
+      "Hayat": "Hayat",
+    };
+    
+    // hasBranch: customer must have this product (search in sahipOlunanUrunler)
+    if (filters.hasBranch) {
+      const normalizedBranch = branchDisplayToRaw[filters.hasBranch] || filters.hasBranch;
+      conditions.push(ilike(customerProfiles.sahipOlunanUrunler, `%${normalizedBranch}%`));
+    }
+    
+    // notHasBranch: customer must NOT have this product
+    if (filters.notHasBranch) {
+      const normalizedBranch = branchDisplayToRaw[filters.notHasBranch] || filters.notHasBranch;
+      conditions.push(
+        or(
+          isNull(customerProfiles.sahipOlunanUrunler),
+          not(ilike(customerProfiles.sahipOlunanUrunler, `%${normalizedBranch}%`))
+        )
+      );
+    }
+    
+    // policyCountMin: minimum number of policies
+    if (filters.policyCountMin !== undefined) {
+      conditions.push(gte(customerProfiles.toplamPolice, filters.policyCountMin));
+    }
+    
+    // policyCountMax: maximum number of policies
+    if (filters.policyCountMax !== undefined) {
+      conditions.push(lte(customerProfiles.toplamPolice, filters.policyCountMax));
+    }
+    
+    // vehicleCountMin: minimum number of vehicles
+    if (filters.vehicleCountMin !== undefined) {
+      conditions.push(gte(customerProfiles.aracSayisi, filters.vehicleCountMin));
+    }
+    
+    // vehicleAgeMax: Handled in Node.js post-processing for stability
+    // SQL-based JSON parsing is unsafe due to unreliable data quality
+    const vehicleAgeMax = filters.vehicleAgeMax;
+    
+    // If vehicleAgeMax is specified, we need to fetch all matching profiles and filter in Node.js
+    if (vehicleAgeMax !== undefined && Number.isFinite(vehicleAgeMax) && vehicleAgeMax >= 0) {
+      // Fetch all profiles matching SQL conditions (without vehicleAgeMax)
+      const allData = await db
+        .select()
+        .from(customerProfiles)
+        .where(conditions.length > 0 ? and(...conditions) : undefined)
+        .orderBy(customerProfiles.musteriIsmi);
+      
+      // Filter in Node.js by parsing aracBilgileri safely
+      const currentYear = new Date().getFullYear();
+      const minYear = currentYear - vehicleAgeMax;
+      
+      const filteredData = allData.filter(profile => {
+        if (!profile.aracBilgileri) return false;
+        try {
+          const vehicles = JSON.parse(profile.aracBilgileri);
+          if (!Array.isArray(vehicles)) return false;
+          return vehicles.some((v: { yil?: number | string }) => {
+            const year = typeof v.yil === 'string' ? parseInt(v.yil, 10) : v.yil;
+            return typeof year === 'number' && !isNaN(year) && year >= minYear;
+          });
+        } catch {
+          return false;
+        }
+      });
+      
+      // Apply pagination on filtered results
+      const total = filteredData.length;
+      const offset = (filters.page - 1) * filters.limit;
+      const paginatedData = filteredData.slice(offset, offset + filters.limit);
+      
+      return {
+        profiles: paginatedData,
+        total,
+        page: filters.page,
+        totalPages: Math.ceil(total / filters.limit),
+      };
+    }
+    
+    // Standard SQL-based pagination for other filters
+    const offset = (filters.page - 1) * filters.limit;
     
     const countResult = await db
       .select({ count: sql<number>`count(*)` })

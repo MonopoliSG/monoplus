@@ -29,6 +29,12 @@ function buildProfileFilterUrl(filters: {
   policyType?: string;
   product?: string;
   hashtag?: string;
+  hasBranch?: string;
+  notHasBranch?: string;
+  policyCountMin?: number;
+  policyCountMax?: number;
+  vehicleCountMin?: number;
+  vehicleAgeMax?: number;
 }): string {
   const params = new URLSearchParams();
   if (filters.search) params.set("search", filters.search);
@@ -37,6 +43,12 @@ function buildProfileFilterUrl(filters: {
   if (filters.policyType) params.set("policyType", filters.policyType);
   if (filters.product) params.set("product", filters.product);
   if (filters.hashtag) params.set("hashtag", filters.hashtag);
+  if (filters.hasBranch) params.set("hasBranch", filters.hasBranch);
+  if (filters.notHasBranch) params.set("notHasBranch", filters.notHasBranch);
+  if (filters.policyCountMin !== undefined) params.set("policyCountMin", filters.policyCountMin.toString());
+  if (filters.policyCountMax !== undefined) params.set("policyCountMax", filters.policyCountMax.toString());
+  if (filters.vehicleCountMin !== undefined) params.set("vehicleCountMin", filters.vehicleCountMin.toString());
+  if (filters.vehicleAgeMax !== undefined) params.set("vehicleAgeMax", filters.vehicleAgeMax.toString());
   const queryString = params.toString();
   return queryString ? `/customer-profiles?${queryString}` : "/customer-profiles";
 }
@@ -126,16 +138,48 @@ const reverseProductMapping: Record<string, string> = {
 function buildSegmentProfileUrl(segmentTitle: string, metadata?: SegmentMetadata): string {
   const title = segmentTitle;
   const lowerTitle = title.toLowerCase().replace(/i̇/g, 'i').replace(/ı/g, 'i');
-  const filters: { city?: string; customerType?: string; product?: string; policyType?: string } = {};
+  const filters: { 
+    city?: string; 
+    customerType?: string; 
+    product?: string; 
+    policyType?: string;
+    hasBranch?: string;
+    notHasBranch?: string;
+    policyCountMin?: number;
+    policyCountMax?: number;
+    vehicleCountMin?: number;
+    vehicleAgeMax?: number;
+  } = {};
   
-  if (metadata?.city) filters.city = metadata.city;
-  if (metadata?.customerType) filters.customerType = metadata.customerType;
-  if (metadata?.branch) {
-    // Convert display name to raw branch key
+  // Use filters from metadata if available (most accurate - from AI response)
+  if (metadata?.filters) {
+    const f = metadata.filters;
+    if (f.city) filters.city = f.city;
+    if (f.customerType) filters.customerType = f.customerType;
+    if (f.branch) {
+      filters.product = reverseProductMapping[f.branch] || f.branch;
+    }
+    // Normalize hasBranch/notHasBranch to raw branch keys for sahipOlunanUrunler matching
+    if (f.hasBranch) {
+      filters.hasBranch = reverseProductMapping[f.hasBranch] || f.hasBranch;
+    }
+    if (f.notHasBranch) {
+      filters.notHasBranch = reverseProductMapping[f.notHasBranch] || f.notHasBranch;
+    }
+    if (f.policyCountMin !== undefined) filters.policyCountMin = f.policyCountMin;
+    if (f.policyCountMax !== undefined) filters.policyCountMax = f.policyCountMax;
+    if (f.vehicleCountMin !== undefined) filters.vehicleCountMin = f.vehicleCountMin;
+    if (f.vehicleAgeMax !== undefined) filters.vehicleAgeMax = f.vehicleAgeMax;
+  }
+  
+  // Also check legacy metadata fields
+  if (!filters.city && metadata?.city) filters.city = metadata.city;
+  if (!filters.customerType && metadata?.customerType) filters.customerType = metadata.customerType;
+  if (!filters.product && metadata?.branch) {
     filters.product = reverseProductMapping[metadata.branch] || metadata.branch;
   }
   
-  // Detect customer type from title
+  // Detect customer type from title if not already set
   if (!filters.customerType) {
     if (lowerTitle.includes("kurumsal") || lowerTitle.includes("tüzel")) {
       filters.customerType = "Kurumsal";
@@ -144,8 +188,8 @@ function buildSegmentProfileUrl(segmentTitle: string, metadata?: SegmentMetadata
     }
   }
   
-  // Detect product from title using raw branch key
-  if (!filters.product) {
+  // Detect product from title using raw branch key if not already set
+  if (!filters.product && !filters.hasBranch) {
     const displayProduct = findProductInText(title);
     if (displayProduct) {
       filters.product = reverseProductMapping[displayProduct] || displayProduct;

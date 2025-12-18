@@ -1116,6 +1116,17 @@ Sadece JSON objesi döndür, başka metin ekleme.`;
       const product = req.query.product as string;
       const vehicleBrand = req.query.vehicleBrand as string;
       const hasAiAnalysis = req.query.hasAiAnalysis === "true";
+      const hasBranch = req.query.hasBranch as string;
+      const notHasBranch = req.query.notHasBranch as string;
+      // Sanitize numeric params - ensure valid finite numbers
+      const parsedPolicyCountMin = Number(req.query.policyCountMin);
+      const policyCountMin = Number.isFinite(parsedPolicyCountMin) ? parsedPolicyCountMin : undefined;
+      const parsedPolicyCountMax = Number(req.query.policyCountMax);
+      const policyCountMax = Number.isFinite(parsedPolicyCountMax) ? parsedPolicyCountMax : undefined;
+      const parsedVehicleCountMin = Number(req.query.vehicleCountMin);
+      const vehicleCountMin = Number.isFinite(parsedVehicleCountMin) ? parsedVehicleCountMin : undefined;
+      const parsedVehicleAgeMax = Number(req.query.vehicleAgeMax);
+      const vehicleAgeMax = Number.isFinite(parsedVehicleAgeMax) ? parsedVehicleAgeMax : undefined;
       
       const result = await storage.getCustomerProfilesPaginated({
         page,
@@ -1128,6 +1139,12 @@ Sadece JSON objesi döndür, başka metin ekleme.`;
         product,
         vehicleBrand,
         hasAiAnalysis,
+        hasBranch,
+        notHasBranch,
+        policyCountMin,
+        policyCountMax,
+        vehicleCountMin,
+        vehicleAgeMax,
       });
       
       res.json(result);
