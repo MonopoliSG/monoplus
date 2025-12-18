@@ -832,10 +832,10 @@ export class DatabaseStorage implements IStorage {
           STRING_AGG(DISTINCT police_turu, ', ') as sahip_olunan_police_turleri,
           COUNT(DISTINCT arac_plakasi) FILTER (WHERE arac_plakasi IS NOT NULL AND arac_plakasi != '') as arac_sayisi,
           (
-            SELECT json_agg(DISTINCT jsonb_build_object('marka', marka, 'model', model, 'yil', model_yili))
+            SELECT json_agg(DISTINCT jsonb_build_object('marka', arac_markasi, 'model', arac_modeli, 'yil', model_yili))
             FROM customers c2 
             WHERE c2.hesap_kodu = customers.hesap_kodu 
-              AND c2.marka IS NOT NULL AND c2.marka != ''
+              AND c2.arac_markasi IS NOT NULL AND c2.arac_markasi != ''
           ) as arac_bilgileri
         FROM customers
         WHERE hesap_kodu IS NOT NULL AND hesap_kodu != ''
