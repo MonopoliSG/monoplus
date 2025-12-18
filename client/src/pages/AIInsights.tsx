@@ -189,7 +189,8 @@ function buildSegmentProfileUrl(segmentTitle: string, metadata?: SegmentMetadata
   }
   
   // Detect product from title using raw branch key if not already set
-  if (!filters.product && !filters.hasBranch) {
+  // Don't set product if notHasBranch is set (they're contradictory - notHasBranch means customer DOESN'T have that product)
+  if (!filters.product && !filters.hasBranch && !filters.notHasBranch) {
     const displayProduct = findProductInText(title);
     if (displayProduct) {
       filters.product = reverseProductMapping[displayProduct] || displayProduct;
