@@ -636,33 +636,51 @@ Sadece JSON array döndür.`;
 
       const content = response.choices[0]?.message?.content || "[]";
       console.log("AI Response content length:", content.length);
+      console.log("AI Response first 300 chars:", content.substring(0, 300));
       let predictions: InsertAiCustomerPrediction[] = [];
 
       try {
-        const jsonMatch = content.match(/\[[\s\S]*\]/);
-        if (jsonMatch) {
-          const rawPredictions = JSON.parse(jsonMatch[0]);
-          console.log("Parsed predictions count:", rawPredictions.length);
-          if (rawPredictions.length > 0) {
-            console.log("First prediction sample:", JSON.stringify(rawPredictions[0]));
+        // Try multiple parsing strategies
+        let rawPredictions: any[] = [];
+        
+        // Strategy 1: Direct JSON parse
+        try {
+          rawPredictions = JSON.parse(content);
+        } catch {
+          // Strategy 2: Find JSON array with greedy regex
+          const jsonMatch = content.match(/\[[\s\S]*?\]/);
+          if (jsonMatch) {
+            rawPredictions = JSON.parse(jsonMatch[0]);
+          } else {
+            // Strategy 3: Find any JSON-like content between first [ and last ]
+            const startIdx = content.indexOf('[');
+            const endIdx = content.lastIndexOf(']');
+            if (startIdx !== -1 && endIdx > startIdx) {
+              const jsonStr = content.substring(startIdx, endIdx + 1);
+              rawPredictions = JSON.parse(jsonStr);
+            }
           }
-          predictions = rawPredictions.map((p: any) => ({
-            analysisType: type,
-            customerId: p.customerId || p.id || "",
-            customerName: p.customerName || p.name || "",
-            currentProduct: p.currentProduct || p.product || "",
-            suggestedProduct: p.suggestedProduct || null,
-            probability: Math.min(100, Math.max(0, parseInt(p.probability) || 50)),
-            reason: p.reason || "",
-            city: p.city || null,
-          })).filter((p: any) => p.customerId && p.customerName);
-          console.log("Filtered predictions count:", predictions.length);
-        } else {
-          console.log("No JSON array found in AI response");
         }
+        
+        console.log("Parsed predictions count:", rawPredictions.length);
+        if (rawPredictions.length > 0) {
+          console.log("First prediction sample:", JSON.stringify(rawPredictions[0]));
+        }
+        
+        predictions = rawPredictions.map((p: any) => ({
+          analysisType: type,
+          customerId: p.customerId || p.id || "",
+          customerName: p.customerName || p.name || "",
+          currentProduct: p.currentProduct || p.product || "",
+          suggestedProduct: p.suggestedProduct || null,
+          probability: Math.min(100, Math.max(0, parseInt(p.probability) || 50)),
+          reason: p.reason || "",
+          city: p.city || null,
+        })).filter((p: any) => p.customerId && p.customerName);
+        console.log("Filtered predictions count:", predictions.length);
       } catch (parseError) {
         console.error("Error parsing AI response:", parseError);
-        console.log("Raw AI response:", content.substring(0, 500));
+        console.log("Raw AI response:", content.substring(0, 1000));
       }
 
       if (predictions.length > 0) {
