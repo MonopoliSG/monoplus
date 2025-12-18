@@ -341,22 +341,34 @@ export default function AIInsights() {
             </Card>
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
-              {segmentAnalyses.map((analysis) => (
-                <Card key={analysis.id} data-testid={`card-segment-${analysis.id}`}>
-                  <CardHeader>
-                    <div className="flex items-center justify-between gap-2">
-                      <CardTitle className="text-base">{analysis.title}</CardTitle>
-                      <Badge>AI</Badge>
-                    </div>
-                    <CardDescription>
-                      {new Date(analysis.createdAt!).toLocaleDateString("tr-TR")}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground">{analysis.insight}</p>
-                  </CardContent>
-                </Card>
-              ))}
+              {segmentAnalyses.map((analysis) => {
+                const metadata = analysis.metadata as { customerCount?: number; avgPremium?: number } | null;
+                return (
+                  <Card key={analysis.id} data-testid={`card-segment-${analysis.id}`}>
+                    <CardHeader>
+                      <div className="flex items-center justify-between gap-2">
+                        <CardTitle className="text-base">{analysis.title}</CardTitle>
+                        <Badge>AI</Badge>
+                      </div>
+                      <CardDescription className="flex items-center justify-between gap-2">
+                        <span>{new Date(analysis.createdAt!).toLocaleDateString("tr-TR")}</span>
+                        {metadata?.customerCount && (
+                          <span className="text-xs">{metadata.customerCount} müşteri</span>
+                        )}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <p className="text-sm text-muted-foreground">{analysis.insight}</p>
+                      <Link href={`/customers?segment=${encodeURIComponent(analysis.title)}`}>
+                        <Button variant="outline" size="sm" className="w-full" data-testid={`button-view-segment-${analysis.id}`}>
+                          <Users className="h-4 w-4 mr-2" />
+                          Müşterileri Gör
+                        </Button>
+                      </Link>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </TabsContent>

@@ -66,6 +66,31 @@ export default function Customers() {
 
   const filteredCustomers = useMemo(() => {
     return customers.filter((customer) => {
+      // Segment filter based on segment title keywords
+      if (segmentFilter) {
+        const segmentLower = segmentFilter.toLowerCase();
+        const branch = customer.anaBrans?.toLowerCase() || "";
+        const customerType = customer.musteriTipi?.toLowerCase() || "";
+        const firmaTipi = customer.firmaTipi?.toLowerCase() || "";
+        
+        // Match segment keywords with customer data
+        const segmentMatches = 
+          (segmentLower.includes("kurumsal") && (customerType.includes("kurum") || firmaTipi.includes("kurum") || firmaTipi.includes("tüzel"))) ||
+          (segmentLower.includes("bireysel") && (customerType.includes("birey") || firmaTipi.includes("gerçek"))) ||
+          (segmentLower.includes("trafik") && branch.includes("trafik")) ||
+          (segmentLower.includes("kasko") && branch.includes("kasko")) ||
+          (segmentLower.includes("sağlık") && branch.includes("sağlık")) ||
+          (segmentLower.includes("dask") && branch.includes("dask")) ||
+          (segmentLower.includes("konut") && branch.includes("konut")) ||
+          (segmentLower.includes("yangın") && branch.includes("yangın")) ||
+          (segmentLower.includes("mühendislik") && branch.includes("mühendislik")) ||
+          (segmentLower.includes("nakliyat") && branch.includes("nakliyat")) ||
+          (segmentLower.includes("seyahat") && branch.includes("seyahat")) ||
+          (segmentLower.includes("oto") && (branch.includes("oto") || branch.includes("kasko") || branch.includes("trafik")));
+        
+        if (!segmentMatches) return false;
+      }
+      
       if (searchTerm) {
         const search = searchTerm.toLowerCase();
         if (
@@ -115,7 +140,7 @@ export default function Customers() {
 
       return true;
     });
-  }, [customers, searchTerm, cityFilter, branchFilter, dateType, dateFrom, dateTo]);
+  }, [customers, searchTerm, cityFilter, branchFilter, dateType, dateFrom, dateTo, segmentFilter]);
 
   const clearFilters = () => {
     setSearchTerm("");
@@ -239,8 +264,20 @@ export default function Customers() {
           <div>
             <h1 className="text-2xl font-semibold" data-testid="text-page-title">Müşteriler</h1>
             <p className="text-muted-foreground">
-              {filteredCustomers.length} müşteri{segmentFilter ? " (segment filtreli)" : ""}
+              {filteredCustomers.length} müşteri
             </p>
+            {segmentFilter && (
+              <div className="flex items-center gap-2 mt-1">
+                <Badge variant="secondary" className="text-xs">
+                  Segment: {segmentFilter}
+                </Badge>
+                <Link href="/customers">
+                  <Button variant="ghost" size="sm" className="h-6 px-2" data-testid="button-clear-segment">
+                    <X className="h-3 w-3" />
+                  </Button>
+                </Link>
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <Button
