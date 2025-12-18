@@ -1002,6 +1002,16 @@ Sadece JSON array döndür.`;
       const availableBranches = Array.from(branchSet);
       const availableCities = Array.from(citySet);
 
+      // Get hashtags from customer profiles for segment filtering
+      const allProfiles = await storage.getAllCustomerProfilesForAiAnalysis();
+      const allHashtags = new Set<string>();
+      allProfiles.forEach((p: any) => {
+        if (p.aiAnaliz) {
+          p.aiAnaliz.split(/\s+/).filter((t: string) => t.startsWith('#')).forEach((t: string) => allHashtags.add(t));
+        }
+      });
+      const availableHashtags = Array.from(allHashtags).slice(0, 40);
+
       const systemPrompt = `Sen deneyimli bir sigorta uzmanısın. Kullanıcının belirttiği kriterlere göre müşteri segmenti analizi yap.
 
 Müşteri verisi (örnek ${sampleSize} müşteri, toplam ${customers.length} müşteri):
@@ -1009,29 +1019,41 @@ ${JSON.stringify(sampledCustomers.slice(0, 30), null, 2)}
 
 Kullanıcının kriterleri: ${prompt}
 
-ÖNEMLİ: Segment oluştururken SADECE aşağıdaki filtreleme seçeneklerini kullanabilirsin:
+ÖNEMLİ: Segment oluştururken aşağıdaki filtreleme seçeneklerini kullanabilirsin:
+
+HASHTAG FİLTRELERİ (ÖNCELİKLİ - Segment tanımlamada hashtag'leri yoğun kullan!):
+- hashtag: Tek bir hashtag (örn: "#sadik_musteri")
+- hashtags: Birden fazla hashtag kombinasyonu (örn: ["#kurumsal", "#yuksek_potansiyel"])
+Kullanılabilir hashtag'ler: ${availableHashtags.join(", ")}
+
+HASHTAG KOMBİNASYON ÖRNEKLERİ:
+- Ürün + Hashtag: hasBranch="Oto Kaza (Kasko)" + hashtag="#sadik_musteri" → Kasko sahipleri arasında sadık müşteriler
+- Şehir + Hashtag: city="İSTANBUL" + hashtag="#yuksek_potansiyel" → İstanbul'daki yüksek potansiyelli müşteriler
+- Hashtag + Hashtag: hashtags=["#kurumsal", "#saglik"] → Kurumsal ve sağlık etiketli müşteriler
+- Ürün + Çoklu Hashtag: hasBranch="Sağlık" + hashtags=["#bireysel", "#orta_yas"] → Bireysel orta yaş sağlık sahipleri
+
+DİĞER FİLTRELER:
 - city: Şehir (Kullanılabilir değerler: ${availableCities.slice(0, 20).join(", ")})
 - branch: Ürün/Branş (Kullanılabilir değerler: ${availableBranches.join(", ")})
 - customerType: Müşteri tipi ("bireysel" veya "kurumsal")
 - hasBranch: Bu ürüne sahip müşteriler (örn: "Oto Kaza (Kasko)")
 - notHasBranch: Bu ürüne sahip OLMAYAN müşteriler (örn: "Oto Kaza (Trafik)")
-- hasBranch2: İkinci ürüne sahip müşteriler - çoklu ürün sorguları için (örn: Trafik + Konut)
+- hasBranch2: İkinci ürüne sahip müşteriler - çoklu ürün sorguları için
 - notHasBranch2: İkinci ürüne sahip OLMAYAN müşteriler
 - minAge: Minimum müşteri yaşı (sayı, örn: 25)
-- policyCountMin: Minimum poliçe sayısı (tek poliçeli için 1, sadık müşteriler için 3)
-- policyCountMax: Maximum poliçe sayısı (tek poliçeli için 1, iki poliçeli için 2)
-- renewalProduct: Yenileme yaklaşan ürün (örn: "Oto Kaza (Kasko)" - varsayılan 30 gün)
-- vehicleCountMin: Minimum araç sayısı (birden fazla araç için 2)
-- vehicleAgeMax: Maximum araç yaşı (0-5 yaş arası için 5, 0-10 yaş arası için 10)
+- policyCountMin: Minimum poliçe sayısı
+- policyCountMax: Maximum poliçe sayısı
+- renewalProduct: Yenileme yaklaşan ürün
+- vehicleCountMin: Minimum araç sayısı
+- vehicleAgeMax: Maximum araç yaşı
 
 ÖRNEK SEGMENTLER:
+- Kasko'lu Sadık Müşteriler: hasBranch="Oto Kaza (Kasko)", hashtag="#sadik_musteri"
+- İstanbul Yüksek Potansiyel: city="İSTANBUL", hashtag="#yuksek_potansiyel"
+- Kurumsal Sağlık Müşterileri: hashtags=["#kurumsal", "#saglik"]
+- Anadolu Yenileme Riskli: hashtags=["#anadolu", "#yenileme_riski"]
 - Trafiği Var Kaskosu Yok: hasBranch="Oto Kaza (Trafik)", notHasBranch="Oto Kaza (Kasko)"
-- Trafiği Var Kaskosu Yok (0-10 Yaş Araç): hasBranch="Oto Kaza (Trafik)", notHasBranch="Oto Kaza (Kasko)", vehicleAgeMax=10
-- Tek Poliçeli Müşteriler: policyCountMin=1, policyCountMax=1
-- Üç ve Üzeri Poliçeli Müşteriler: policyCountMin=3
-- Trafik + Konut Olanlar: hasBranch="Oto Kaza (Trafik)", hasBranch2="Yangın (Konut)"
-- Birden Fazla Aracı Olan Müşteriler: vehicleCountMin=2
-- Kasko Yenilemeye Yakın: renewalProduct="Oto Kaza (Kasko)"
+- Büyükşehir Kasko Sahipleri: hasBranch="Oto Kaza (Kasko)", hashtag="#buyuksehir"
 
 Bu kriterlere göre bir segment analizi oluştur. Şu JSON formatında döndür:
 {
@@ -1043,13 +1065,13 @@ Bu kriterlere göre bir segment analizi oluştur. Şu JSON formatında döndür:
     "avgPremium": 5000 
   },
   "filters": {
-    "hasBranch": "Oto Kaza (Trafik)",
-    "notHasBranch": "Oto Kaza (Kasko)",
-    "vehicleAgeMax": 10
+    "hasBranch": "Oto Kaza (Kasko)",
+    "hashtag": "#sadik_musteri"
   }
 }
 
-NOT: "filters" objesinde SADECE kullanıcının isteğine uygun filtreleri dahil et, gereksiz olanları ekleme.
+NOT: "filters" objesinde SADECE kullanıcının isteğine uygun filtreleri dahil et.
+Hashtag kullanırken mutlaka # ile başlasın. Birden fazla hashtag için "hashtags" dizisi kullan.
 Segment başlığı Türkçe olmalı ve filtreleri yansıtmalı.
 
 Sadece JSON objesi döndür, başka metin ekleme.`;
@@ -1136,7 +1158,7 @@ Sadece JSON objesi döndür, başka metin ekleme.`;
 
 Kurallar:
 1. SADECE 3-10 müşteri profilini kapsayan çok spesifik bir niş segment bul
-2. Ortak özellikleri olsun (hashtag, şehir, ürün kombinasyonu, vb.)
+2. HASHTAG KOMBİNASYONLARI KULLAN! En az 1-2 hashtag içeren filtreler oluştur
 3. Ya yeni ürün önerisi YA çapraz satış fırsatı YA da beklenmedik bir segment olsun
 4. Gerçekten şaşırtıcı ve ilginç olsun!
 
@@ -1145,10 +1167,19 @@ Kullanılabilir hashtag'ler: ${availableHashtags.join(", ")}
 Müşteri profilleri (örnek ${sampleSize} profil):
 ${JSON.stringify(sampledProfiles.slice(0, 50), null, 2)}
 
-ÖNEMLİ: Segment için FİLTRE objesi döndürmelisin. Kullanılabilir filtreler:
+ÖNEMLİ: HASHTAG KOMBİNASYONLARI ÖNCELİKLİ!
+
+HASHTAG KOMBİNASYON ÖRNEKLERİ (bunları yoğun kullan):
+- Ürün + Hashtag: hasBranch="Oto Kaza (Kasko)" + hashtag="#sadik_musteri" → Kasko sahipleri arasında sadık müşteriler
+- Şehir + Hashtag: city="İSTANBUL" + hashtag="#yuksek_potansiyel" → İstanbul'daki yüksek potansiyelli müşteriler
+- Hashtag + Hashtag: hashtags=["#kurumsal", "#saglik"] → Kurumsal ve sağlık etiketli müşteriler
+- Üç Hashtag: hashtags=["#bireysel", "#orta_yas", "#buyuksehir"] → Bireysel orta yaş büyükşehir müşterileri
+
+Kullanılabilir filtreler:
 - customerType: "Bireysel" veya "Kurumsal"
 - city: Şehir adı (örn: "İSTANBUL")
-- hashtag: Tek bir hashtag (örn: "#sadik_musteri" veya "#yuksek_potansiyel")
+- hashtag: Tek bir hashtag (örn: "#sadik_musteri")
+- hashtags: Birden fazla hashtag (örn: ["#kurumsal", "#yuksek_potansiyel"])
 - hasBranch: Ürün adı (örn: "Sağlık" veya "Oto Kaza (Kasko)")
 
 Şu JSON formatında döndür:
@@ -1160,12 +1191,13 @@ ${JSON.stringify(sampledProfiles.slice(0, 50), null, 2)}
   "recommendation": "Spesifik ürün/kampanya önerisi",
   "potentialRevenue": "Tahmini gelir potansiyeli",
   "filters": {
-    "customerType": "Bireysel",
-    "hashtag": "#sadik_musteri"
+    "hashtags": ["#kurumsal", "#yuksek_potansiyel"],
+    "city": "İSTANBUL"
   }
 }
 
-filters objesinde SADECE uygun filtreleri dahil et. Hashtag kullanıyorsan mutlaka # ile başlasın.
+NOT: filters objesinde mutlaka en az bir hashtag veya hashtags filtresi kullan!
+Hashtag kullanırken mutlaka # ile başlasın. Birden fazla hashtag için "hashtags" dizisi kullan.
 Sadece JSON objesi döndür.`;
 
       const response = await openai.chat.completions.create({
