@@ -1170,6 +1170,100 @@ Sadece JSON objesi döndür, başka metin ekleme.`;
     }
   });
 
+  // AI Analysis for customer profiles - generates hashtags
+  app.post("/api/customer-profiles/ai-analyze", isAuthenticated, async (req, res) => {
+    try {
+      if (!openai) {
+        return res.status(503).json({ message: "AI özellikleri aktif değil. OPENAI_API_KEY gerekli." });
+      }
+
+      const profiles = await storage.getAllCustomerProfilesForAiAnalysis();
+      if (profiles.length === 0) {
+        return res.json({ success: true, message: "Analiz edilecek profil bulunamadı", analyzed: 0 });
+      }
+
+      let analyzed = 0;
+      const batchSize = 10;
+
+      for (let i = 0; i < profiles.length; i += batchSize) {
+        const batch = profiles.slice(i, i + batchSize);
+        
+        const prompt = `Sen bir sigorta müşteri segmentasyon uzmanısın. Aşağıdaki müşteri profillerini analiz et ve her biri için hashtag'ler oluştur.
+
+Hashtag'ler şunları yansıtmalı:
+- Müşteri tipi (#bireysel, #kurumsal, #tuzel)
+- Sahip olduğu sigorta ürünleri (#kasko, #trafik, #saglik, #konut, #isyeri, #nakliyat, #mesleki)
+- Araç markası varsa segment (#premium, #luks, #ekonomik)
+- Demografik özellikler (#genc, #orta_yas, #emekli, #aile)
+- Şehir segmenti (#buyuksehir, #anadolu)
+- Potansiyel (#yuksek_potansiyel, #sadik_musteri, #yenileme_riski)
+
+Müşteri profilleri:
+${batch.map((p, idx) => `
+${idx + 1}. ID: ${p.id}
+   Müşteri: ${p.musteriIsmi || 'Bilinmiyor'}
+   Tip: ${p.musteriTipi || 'Bireysel'}
+   Şehir: ${p.sehir || 'Bilinmiyor'}
+   Ürünler: ${p.sahipOlunanUrunler || 'Yok'}
+   Poliçe Türleri: ${p.sahipOlunanPoliceTurleri || 'Yok'}
+   Araçlar: ${p.aracBilgileri || 'Yok'}
+   Aktif Poliçe: ${p.aktifPolice || 0}
+   Toplam Prim: ${p.toplamBrutPrim || 0} TL
+   Referans Grubu: ${p.referansGrubu || 'Yok'}
+`).join('')}
+
+Her müşteri için JSON formatında yanıt ver:
+[
+  {"id": "profil_id", "hashtags": "#tag1 #tag2 #tag3 ..."},
+  ...
+]
+
+Sadece JSON array döndür, başka açıklama ekleme.`;
+
+        try {
+          const response = await openai.chat.completions.create({
+            model: "gpt-4o",
+            messages: [{ role: "user", content: prompt }],
+            max_completion_tokens: 2000,
+            temperature: 0.3,
+          });
+
+          const content = response.choices[0]?.message?.content || "[]";
+          const cleanContent = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+          
+          try {
+            const results = JSON.parse(cleanContent);
+            for (const result of results) {
+              if (result.id && result.hashtags) {
+                await storage.updateProfileAiAnalysis(result.id, result.hashtags);
+                analyzed++;
+              }
+            }
+          } catch (parseError) {
+            console.error("Error parsing AI response:", parseError);
+          }
+        } catch (aiError) {
+          console.error("Error calling OpenAI:", aiError);
+        }
+
+        // Small delay between batches to avoid rate limiting
+        if (i + batchSize < profiles.length) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+
+      res.json({ 
+        success: true, 
+        message: `${analyzed} müşteri profili analiz edildi`,
+        analyzed,
+        total: profiles.length
+      });
+    } catch (error) {
+      console.error("Error in AI profile analysis:", error);
+      res.status(500).json({ message: "AI analizi başarısız oldu" });
+    }
+  });
+
   return httpServer;
 }
 

@@ -25,7 +25,9 @@ import {
   RefreshCw,
   TrendingUp,
   AlertTriangle,
-  CheckCircle
+  CheckCircle,
+  Sparkles,
+  Hash
 } from "lucide-react";
 import type { CustomerProfile, Customer } from "@shared/schema";
 import { format, parseISO, differenceInDays } from "date-fns";
@@ -292,6 +294,73 @@ export default function CustomerProfileDetail() {
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {profile.aracBilgileri && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Car className="h-5 w-5" />
+                Araç Bilgileri
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {(() => {
+                  try {
+                    const araclar = JSON.parse(profile.aracBilgileri || "[]");
+                    return araclar.map((arac: any, idx: number) => (
+                      <div key={idx} className="flex items-center gap-3 p-3 bg-muted rounded-lg">
+                        <Car className="h-5 w-5 text-muted-foreground" />
+                        <div>
+                          <p className="font-medium">{arac.marka || "Bilinmiyor"}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {arac.model || "-"} {arac.yil ? `(${arac.yil})` : ""}
+                          </p>
+                        </div>
+                      </div>
+                    ));
+                  } catch {
+                    return <p className="text-muted-foreground">Araç bilgisi yüklenemedi</p>;
+                  }
+                })()}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5" />
+              AI Analiz
+            </CardTitle>
+            {profile.aiAnalizTarihi && (
+              <CardDescription>
+                Son analiz: {formatDate(profile.aiAnalizTarihi.toString())}
+              </CardDescription>
+            )}
+          </CardHeader>
+          <CardContent>
+            {profile.aiAnaliz ? (
+              <div className="flex flex-wrap gap-2">
+                {profile.aiAnaliz.split(/\s+/).filter(tag => tag.startsWith('#')).map((tag, idx) => (
+                  <Badge key={idx} variant="outline" className="text-sm">
+                    <Hash className="h-3 w-3 mr-1" />
+                    {tag.replace('#', '')}
+                  </Badge>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-4 text-muted-foreground">
+                <Sparkles className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p>AI analizi henüz yapılmadı</p>
+                <p className="text-sm">Müşteri Profilleri sayfasından AI analizi başlatabilirsiniz</p>
               </div>
             )}
           </CardContent>

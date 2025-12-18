@@ -31,7 +31,8 @@ import {
   Mail,
   MapPin,
   Building2,
-  User
+  User,
+  Sparkles
 } from "lucide-react";
 import type { CustomerProfile } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -100,6 +101,27 @@ export default function CustomerProfiles() {
     },
   });
 
+  const aiAnalyzeMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/customer-profiles/ai-analyze");
+      return response.json();
+    },
+    onSuccess: (data: any) => {
+      toast({
+        title: "AI Analiz Tamamlandi",
+        description: data.message,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/customer-profiles"] });
+    },
+    onError: () => {
+      toast({
+        title: "Hata",
+        description: "AI analizi tamamlanamadi",
+        variant: "destructive",
+      });
+    },
+  });
+
   useEffect(() => {
     const params = new URLSearchParams();
     if (search) params.set("search", search);
@@ -135,7 +157,7 @@ export default function CustomerProfiles() {
           <Users className="h-6 w-6 text-muted-foreground" />
           <h1 className="text-2xl font-bold">Müsteri Profilleri</h1>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
             onClick={() => syncMutation.mutate()}
@@ -144,6 +166,14 @@ export default function CustomerProfiles() {
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${syncMutation.isPending ? "animate-spin" : ""}`} />
             Profilleri Senkronize Et
+          </Button>
+          <Button
+            onClick={() => aiAnalyzeMutation.mutate()}
+            disabled={aiAnalyzeMutation.isPending}
+            data-testid="button-ai-analyze"
+          >
+            <Sparkles className={`h-4 w-4 mr-2 ${aiAnalyzeMutation.isPending ? "animate-pulse" : ""}`} />
+            {aiAnalyzeMutation.isPending ? "Analiz Ediliyor..." : "AI ile Analiz Et"}
           </Button>
         </div>
       </div>

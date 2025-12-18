@@ -120,6 +120,8 @@ export interface IStorage {
   getCustomerProfileByHesapKodu(hesapKodu: string): Promise<CustomerProfile | undefined>;
   getCustomerPolicies(hesapKodu: string): Promise<Customer[]>;
   syncCustomerProfiles(): Promise<{ created: number; updated: number }>;
+  updateProfileAiAnalysis(profileId: string, aiAnaliz: string): Promise<void>;
+  getAllCustomerProfilesForAiAnalysis(): Promise<CustomerProfile[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -814,7 +816,14 @@ export class DatabaseStorage implements IStorage {
           COALESCE(SUM(CASE WHEN brut::numeric > 0 THEN brut::numeric ELSE 0 END), 0) as toplam_brut_prim,
           COALESCE(SUM(CASE WHEN net::numeric > 0 THEN net::numeric ELSE 0 END), 0) as toplam_net_prim,
           STRING_AGG(DISTINCT ana_brans, ', ') as sahip_olunan_urunler,
-          COUNT(DISTINCT arac_plakasi) FILTER (WHERE arac_plakasi IS NOT NULL AND arac_plakasi != '') as arac_sayisi
+          STRING_AGG(DISTINCT police_turu, ', ') as sahip_olunan_police_turleri,
+          COUNT(DISTINCT arac_plakasi) FILTER (WHERE arac_plakasi IS NOT NULL AND arac_plakasi != '') as arac_sayisi,
+          (
+            SELECT json_agg(DISTINCT jsonb_build_object('marka', marka, 'model', model, 'yil', model_yili))
+            FROM customers c2 
+            WHERE c2.hesap_kodu = customers.hesap_kodu 
+              AND c2.marka IS NOT NULL AND c2.marka != ''
+          ) as arac_bilgileri
         FROM customers
         WHERE hesap_kodu IS NOT NULL AND hesap_kodu != ''
         GROUP BY hesap_kodu
@@ -859,7 +868,9 @@ export class DatabaseStorage implements IStorage {
         toplamBrutPrim: row.toplam_brut_prim?.toString() || "0",
         toplamNetPrim: row.toplam_net_prim?.toString() || "0",
         sahipOlunanUrunler: row.sahip_olunan_urunler,
+        sahipOlunanPoliceTurleri: row.sahip_olunan_police_turleri,
         aracSayisi: parseInt(row.arac_sayisi) || 0,
+        aracBilgileri: row.arac_bilgileri ? JSON.stringify(row.arac_bilgileri) : null,
       };
       
       if (existingProfile) {
@@ -875,6 +886,24 @@ export class DatabaseStorage implements IStorage {
     }
     
     return { created, updated };
+  }
+  
+  async updateProfileAiAnalysis(profileId: string, aiAnaliz: string): Promise<void> {
+    await db
+      .update(customerProfiles)
+      .set({ 
+        aiAnaliz, 
+        aiAnalizTarihi: new Date(),
+        updatedAt: new Date() 
+      })
+      .where(eq(customerProfiles.id, profileId));
+  }
+  
+  async getAllCustomerProfilesForAiAnalysis(): Promise<CustomerProfile[]> {
+    return await db
+      .select()
+      .from(customerProfiles)
+      .orderBy(customerProfiles.musteriIsmi);
   }
 }
 
