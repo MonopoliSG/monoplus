@@ -634,9 +634,12 @@ Sadece JSON array döndür.`;
         temperature: 0.3,
       });
 
-      const content = response.choices[0]?.message?.content || "[]";
+      let content = response.choices[0]?.message?.content || "[]";
+      
+      // Remove markdown code blocks if present
+      content = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+      
       console.log("AI Response content length:", content.length);
-      console.log("AI Response first 300 chars:", content.substring(0, 300));
       let predictions: InsertAiCustomerPrediction[] = [];
 
       try {
@@ -647,18 +650,12 @@ Sadece JSON array döndür.`;
         try {
           rawPredictions = JSON.parse(content);
         } catch {
-          // Strategy 2: Find JSON array with greedy regex
-          const jsonMatch = content.match(/\[[\s\S]*?\]/);
-          if (jsonMatch) {
-            rawPredictions = JSON.parse(jsonMatch[0]);
-          } else {
-            // Strategy 3: Find any JSON-like content between first [ and last ]
-            const startIdx = content.indexOf('[');
-            const endIdx = content.lastIndexOf(']');
-            if (startIdx !== -1 && endIdx > startIdx) {
-              const jsonStr = content.substring(startIdx, endIdx + 1);
-              rawPredictions = JSON.parse(jsonStr);
-            }
+          // Strategy 2: Find any JSON-like content between first [ and last ]
+          const startIdx = content.indexOf('[');
+          const endIdx = content.lastIndexOf(']');
+          if (startIdx !== -1 && endIdx > startIdx) {
+            const jsonStr = content.substring(startIdx, endIdx + 1);
+            rawPredictions = JSON.parse(jsonStr);
           }
         }
         
