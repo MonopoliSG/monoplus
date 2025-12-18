@@ -1,0 +1,176 @@
+Error analyzing customers: error: column ai_customer_predictions.analysis_type does not exist
+    at /opt/render/project/src/dist/index.cjs:47:13326
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async ch.deleteCustomerPredictionsByType (/opt/render/project/src/dist/index.cjs:55:116608)
+    at async /opt/render/project/src/dist/index.cjs:118:1747 {
+  length: 135,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '45',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3716',
+  routine: 'errorMissingColumn'
+}
+1:30:00 PM [express] POST /api/ai/analyze-customers 500 in 4840ms :: {"message":"Müşteri analizi başarısız oldu"}
+1:30:05 PM [express] GET /api/auth/user 304 in 144ms :: {"id":"admin","email":"admin@monoplus.com","lastName":"User","username":"admin","firstName":"Admin"}
+Error getting predictions: error: column "analysis_type" does not exist
+    at /opt/render/project/src/dist/index.cjs:47:13326
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async /opt/render/project/src/dist/index.cjs:55:109421
+    at async ch.getCustomerPredictions (/opt/render/project/src/dist/index.cjs:55:116249)
+    at async /opt/render/project/src/dist/index.cjs:118:1160 {
+  length: 113,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '14',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3716',
+  routine: 'errorMissingColumn'
+}
+Error getting predictions: error: column "analysis_type" does not exist
+    at /opt/render/project/src/dist/index.cjs:47:13326
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async /opt/render/project/src/dist/index.cjs:55:109421
+    at async ch.getCustomerPredictions (/opt/render/project/src/dist/index.cjs:55:116249)
+    at async /opt/render/project/src/dist/index.cjs:118:1160 {
+  length: 113,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '14',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3716',
+  routine: 'errorMissingColumn'
+}
+1:30:05 PM [express] GET /api/ai/predictions 500 in 646ms :: {"message":"Failed to get predictions"}
+1:30:05 PM [express] GET /api/ai/predictions 500 in 642ms :: {"message":"Failed to get predictions"}
+1:30:06 PM [express] GET /api/ai/analyses 500 in 643ms :: {"message":"Failed to fetch analyses"}
+Error analyzing customers: error: column ai_customer_predictions.analysis_type does not exist
+    at /opt/render/project/src/dist/index.cjs:47:13326
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async ch.deleteCustomerPredictionsByType (/opt/render/project/src/dist/index.cjs:55:116608)
+    at async /opt/render/project/src/dist/index.cjs:118:1747 {
+  length: 135,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '45',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3716',
+  routine: 'errorMissingColumn'
+}
+1:30:11 PM [express] POST /api/ai/analyze-customers 500 in 3897ms :: {"message":"Müşteri analizi başarısız oldu"}
+1:30:43 PM [express] GET /api/auth/user 304 in 141ms :: {"id":"admin","email":"admin@monoplus.com","lastName":"User","username":"admin","firstName":"Admin"}
+Error getting predictions: error: column "analysis_type" does not exist
+    at /opt/render/project/src/dist/index.cjs:47:13326
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async /opt/render/project/src/dist/index.cjs:55:109421
+    at async ch.getCustomerPredictions (/opt/render/project/src/dist/index.cjs:55:116249)
+    at async /opt/render/project/src/dist/index.cjs:118:1160 {
+  length: 113,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '14',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3716',
+  routine: 'errorMissingColumn'
+}
+1:30:44 PM [express] GET /api/ai/predictions 500 in 640ms :: {"message":"Failed to get predictions"}
+1:30:44 PM [express] GET /api/ai/analyses 500 in 634ms :: {"message":"Failed to fetch analyses"}
+Error getting predictions: error: column "analysis_type" does not exist
+    at /opt/render/project/src/dist/index.cjs:47:13326
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async /opt/render/project/src/dist/index.cjs:55:109421
+    at async ch.getCustomerPredictions (/opt/render/project/src/dist/index.cjs:55:116249)
+    at async /opt/render/project/src/dist/index.cjs:118:1160 {
+  length: 113,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '14',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3716',
+  routine: 'errorMissingColumn'
+}
+1:30:44 PM [express] GET /api/ai/predictions 500 in 640ms :: {"message":"Failed to get predictions"}
+Error analyzing customers: error: column ai_customer_predictions.analysis_type does not exist
+    at /opt/render/project/src/dist/index.cjs:47:13326
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async ch.deleteCustomerPredictionsByType (/opt/render/project/src/dist/index.cjs:55:116608)
+    at async /opt/render/project/src/dist/index.cjs:118:1747 {
+  length: 135,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '45',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3716',
+  routine: 'errorMissingColumn'
+}
+1:30:49 PM [express] POST /api/ai/analyze-customers 500 in 3970ms :: {"message":"Müşteri analizi
