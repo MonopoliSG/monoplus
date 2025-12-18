@@ -789,6 +789,7 @@ Sadece JSON array döndür.`;
       content = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
       
       console.log("AI Response content length:", content.length);
+      console.log("AI Response first 500 chars:", content.substring(0, 500));
       let predictions: InsertAiCustomerPrediction[] = [];
 
       try {
@@ -797,14 +798,25 @@ Sadece JSON array döndür.`;
         
         // Strategy 1: Direct JSON parse
         try {
-          rawPredictions = JSON.parse(content);
-        } catch {
+          const parsed = JSON.parse(content);
+          rawPredictions = Array.isArray(parsed) ? parsed : (parsed.predictions || parsed.data || []);
+          console.log("Strategy 1 succeeded, count:", rawPredictions.length);
+        } catch (e1) {
+          console.log("Strategy 1 failed:", (e1 as Error).message);
           // Strategy 2: Find any JSON-like content between first [ and last ]
           const startIdx = content.indexOf('[');
           const endIdx = content.lastIndexOf(']');
+          console.log("Strategy 2: startIdx=", startIdx, "endIdx=", endIdx);
           if (startIdx !== -1 && endIdx > startIdx) {
             const jsonStr = content.substring(startIdx, endIdx + 1);
-            rawPredictions = JSON.parse(jsonStr);
+            console.log("JSON substring length:", jsonStr.length);
+            try {
+              rawPredictions = JSON.parse(jsonStr);
+              console.log("Strategy 2 succeeded, count:", rawPredictions.length);
+            } catch (e2) {
+              console.log("Strategy 2 failed:", (e2 as Error).message);
+              console.log("JSON substring first 200 chars:", jsonStr.substring(0, 200));
+            }
           }
         }
         
@@ -815,13 +827,13 @@ Sadece JSON array döndür.`;
         
         predictions = rawPredictions.map((p: any) => ({
           analysisType: type,
-          customerId: p.customerId || p.id || "",
-          customerName: p.customerName || p.name || "",
-          currentProduct: p.currentProduct || p.product || "",
-          suggestedProduct: p.suggestedProduct || null,
-          probability: Math.min(100, Math.max(0, parseInt(p.probability) || 50)),
-          reason: p.reason || "",
-          city: p.city || null,
+          customerId: String(p.customerId || p.id || ""),
+          customerName: String(p.customerName || p.name || p.müşteri_adı || ""),
+          currentProduct: String(p.currentProduct || p.product || p.mevcut_ürün || ""),
+          suggestedProduct: p.suggestedProduct || p.suggested_product || p.önerilen_ürün || null,
+          probability: Math.min(100, Math.max(0, parseInt(p.probability || p.olasılık || p.risk) || 50)),
+          reason: String(p.reason || p.sebep || p.açıklama || ""),
+          city: p.city || p.şehir || null,
         })).filter((p: any) => p.customerId && p.customerName);
         console.log("Filtered predictions count:", predictions.length);
       } catch (parseError) {
