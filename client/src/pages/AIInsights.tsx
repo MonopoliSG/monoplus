@@ -13,12 +13,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
-import { Sparkles, RefreshCw, TrendingUp, AlertTriangle, ShoppingCart, FileSpreadsheet, Users, ExternalLink, Search, Filter, Wand2, Trash2 } from "lucide-react";
+import { Sparkles, RefreshCw, TrendingUp, AlertTriangle, ShoppingCart, FileSpreadsheet, Users, ExternalLink, Search, Filter, Wand2, Trash2, Hash, Tag } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
-import type { AiCustomerPrediction, AiAnalysis } from "@shared/schema";
+import type { AiCustomerPrediction, AiAnalysis, CustomerProfile } from "@shared/schema";
 import { buildCustomerFilterUrl } from "./Customers";
 
 // Product name mapping for Turkish insurance products
@@ -224,6 +224,7 @@ export default function AIInsights() {
     maxProbability: 100,
   });
   const [customSegmentPrompt, setCustomSegmentPrompt] = useState("");
+  const [selectedHashtags, setSelectedHashtags] = useState<string[]>([]);
 
   const { data: churnPredictions = [], isLoading: churnLoading } = useQuery<AiCustomerPrediction[]>({
     queryKey: ["/api/ai/predictions", "churn_prediction", churnFilters],
@@ -263,6 +264,32 @@ export default function AIInsights() {
     queryKey: ["/api/ai/analyses"],
     select: (data) => data.filter((a) => a.analysisType === "segmentation"),
   });
+
+  const { data: profilesWithHashtags = [], isLoading: hashtagsLoading } = useQuery<CustomerProfile[]>({
+    queryKey: ["/api/customer-profiles/all"],
+    queryFn: async () => {
+      const res = await fetch(`/api/customer-profiles?limit=10000`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch profiles");
+      const data = await res.json();
+      return data.profiles || [];
+    },
+  });
+
+  const allHashtags = Array.from(
+    new Set(
+      profilesWithHashtags
+        .filter(p => p.aiAnaliz)
+        .flatMap(p => p.aiAnaliz?.split(/\s+/).filter(tag => tag.startsWith('#')) || [])
+    )
+  ).sort();
+
+  const filteredProfiles = selectedHashtags.length === 0
+    ? profilesWithHashtags.filter(p => p.aiAnaliz)
+    : profilesWithHashtags.filter(p => {
+        if (!p.aiAnaliz) return false;
+        const profileTags = p.aiAnaliz.split(/\s+/).filter(tag => tag.startsWith('#'));
+        return selectedHashtags.every(tag => profileTags.includes(tag));
+      });
 
   const runChurnMutation = useMutation({
     mutationFn: async () => {
@@ -448,6 +475,10 @@ export default function AIInsights() {
           <TabsTrigger value="churn" data-testid="tab-churn">İptal Tahminleri</TabsTrigger>
           <TabsTrigger value="crosssell" data-testid="tab-crosssell">Çapraz Satış</TabsTrigger>
           <TabsTrigger value="segments" data-testid="tab-segments">Segmentasyon</TabsTrigger>
+          <TabsTrigger value="hashtags" data-testid="tab-hashtags">
+            <Hash className="h-4 w-4 mr-1" />
+            Hashtag Segmentleri
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="churn" className="space-y-4">
@@ -658,6 +689,147 @@ export default function AIInsights() {
                 );
               })}
             </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="hashtags" className="space-y-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div>
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <Hash className="h-4 w-4" />
+                    Hashtag Segmentleri
+                  </CardTitle>
+                  <CardDescription>
+                    AI tarafından oluşturulan hashtag'lerle müşteri segmentleri
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline">
+                    {filteredProfiles.length} müşteri
+                  </Badge>
+                  <Link href="/customer-profiles">
+                    <Button variant="outline" size="sm" data-testid="button-goto-profiles">
+                      <Users className="h-4 w-4 mr-2" />
+                      Profillere Git
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-xs mb-2 block">Hashtag Seç (birden fazla seçilebilir)</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {allHashtags.map((tag) => (
+                      <Badge
+                        key={tag}
+                        variant={selectedHashtags.includes(tag) ? "default" : "outline"}
+                        className="cursor-pointer"
+                        onClick={() => {
+                          if (selectedHashtags.includes(tag)) {
+                            setSelectedHashtags(selectedHashtags.filter(t => t !== tag));
+                          } else {
+                            setSelectedHashtags([...selectedHashtags, tag]);
+                          }
+                        }}
+                        data-testid={`badge-hashtag-${tag.replace('#', '')}`}
+                      >
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+                  {selectedHashtags.length > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="mt-2"
+                      onClick={() => setSelectedHashtags([])}
+                      data-testid="button-clear-hashtags"
+                    >
+                      Filtreleri Temizle
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {hashtagsLoading ? (
+            <div className="animate-pulse space-y-2">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-16 bg-muted rounded" />
+              ))}
+            </div>
+          ) : allHashtags.length === 0 ? (
+            <Card className="p-12 text-center">
+              <Hash className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <h3 className="text-lg font-medium mb-2">Henüz hashtag analizi yok</h3>
+              <p className="text-muted-foreground mb-4">
+                Müşteri Profilleri sayfasından "AI ile Analiz Et" butonuna tıklayarak hashtag oluşturabilirsiniz.
+              </p>
+              <Link href="/customer-profiles">
+                <Button data-testid="button-goto-profiles-empty">
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  Müşteri Profillerine Git
+                </Button>
+              </Link>
+            </Card>
+          ) : (
+            <ScrollArea className="h-[500px]">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Müşteri</TableHead>
+                    <TableHead>Tip</TableHead>
+                    <TableHead>Şehir</TableHead>
+                    <TableHead>Hashtag'ler</TableHead>
+                    <TableHead className="text-right">İşlemler</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredProfiles.slice(0, 100).map((profile) => (
+                    <TableRow key={profile.id}>
+                      <TableCell className="font-medium">{profile.musteriIsmi || "-"}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-xs">
+                          {profile.musteriTipi || "Bireysel"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{profile.sehir || "-"}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {profile.aiAnaliz?.split(/\s+/).filter(tag => tag.startsWith('#')).slice(0, 5).map((tag, idx) => (
+                            <Badge key={idx} variant="secondary" className="text-xs">
+                              {tag}
+                            </Badge>
+                          ))}
+                          {(profile.aiAnaliz?.split(/\s+/).filter(tag => tag.startsWith('#')).length || 0) > 5 && (
+                            <Badge variant="outline" className="text-xs">
+                              +{(profile.aiAnaliz?.split(/\s+/).filter(tag => tag.startsWith('#')).length || 0) - 5}
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Link href={`/customer-profiles/${profile.id}`}>
+                          <Button variant="ghost" size="sm" data-testid={`button-view-profile-${profile.id}`}>
+                            <ExternalLink className="h-4 w-4" />
+                          </Button>
+                        </Link>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              {filteredProfiles.length > 100 && (
+                <div className="text-center py-4 text-muted-foreground text-sm">
+                  {filteredProfiles.length - 100} müşteri daha var. Tamamını görmek için Müşteri Profillerine gidin.
+                </div>
+              )}
+            </ScrollArea>
           )}
         </TabsContent>
       </Tabs>
