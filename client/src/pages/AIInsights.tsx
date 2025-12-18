@@ -743,7 +743,7 @@ export default function AIInsights() {
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
               {segmentAnalyses.map((analysis) => {
-                const metadata = analysis.metadata as SegmentMetadata & { customerCount?: number; avgPremium?: number } | null;
+                const metadata = analysis.metadata as SegmentMetadata | null;
                 return (
                   <Card key={analysis.id} data-testid={`card-segment-${analysis.id}`}>
                     <CardHeader>
@@ -783,11 +783,8 @@ export default function AIInsights() {
                           </AlertDialog>
                         </div>
                       </div>
-                      <CardDescription className="flex items-center justify-between gap-2">
+                      <CardDescription>
                         <span>{new Date(analysis.createdAt!).toLocaleDateString("tr-TR")}</span>
-                        {metadata?.customerCount && (
-                          <span className="text-xs">{metadata.customerCount} müşteri</span>
-                        )}
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3">
