@@ -2,8 +2,63 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
-import { insertCustomerSchema, insertProductSchema, insertSegmentSchema, insertCampaignSchema } from "@shared/schema";
+import { insertCustomerSchema, insertProductSchema, insertSegmentSchema, insertCampaignSchema, csvColumnMapping, type InsertCustomer } from "@shared/schema";
 import OpenAI from "openai";
+
+// Date fields in the customer schema
+const dateFields = new Set([
+  "tanzimTarihi", "baslangicTarihi", "bitisTarihi", "hesapOlusturmaTarihi",
+  "eskiPoliceTanzimTarihi", "eskiPoliceBitisTarihi", "yeniPoliceTanzimTarihi", "dogumTarihi"
+]);
+
+// Decimal fields in the customer schema
+const decimalFields = new Set([
+  "brut", "net", "komisyon", "taliKomisyonu", "acenteKomisyonuYuzde", "taliKomisyonuYuzde",
+  "pesinat", "kur", "odenen", "kalan", "sirketeBorc", "sirketeKalan", "sirketeOdenen",
+  "eskiPoliceBrutPrim", "eskiPoliceNetPrim", "eskiPoliceAcenteKomisyonu",
+  "yeniPoliceBrutPrim", "yeniPoliceNetPrim", "yeniPoliceAcenteKomisyonu",
+  "ortaklikKatkiPayi", "kazanilmisNetPrim", "kazanilmisBrutPrim", "kazanilmisNetPrimDvz",
+  "hasarKarlilikTl", "hasarKarlilikDvz", "hasarKarlilikOraniYuzde", "aracBedeli"
+]);
+
+// Integer fields in the customer schema
+const integerFields = new Set(["taksitSayisi", "modelYili"]);
+
+// Parse CSV row to customer record using column mapping
+function parseCustomerFromCsv(csvRow: Record<string, string>): Partial<InsertCustomer> {
+  const customer: Record<string, any> = {};
+  
+  for (const [csvHeader, fieldName] of Object.entries(csvColumnMapping)) {
+    const value = csvRow[csvHeader];
+    if (value === undefined || value === null || value === "") continue;
+    
+    if (dateFields.has(fieldName)) {
+      // Parse date - try multiple formats
+      const dateStr = value.trim();
+      if (dateStr) {
+        customer[fieldName] = dateStr;
+      }
+    } else if (decimalFields.has(fieldName)) {
+      // Parse decimal - handle Turkish number format
+      const numStr = value.replace(/\./g, "").replace(",", ".");
+      const num = parseFloat(numStr);
+      if (!isNaN(num)) {
+        customer[fieldName] = num.toString();
+      }
+    } else if (integerFields.has(fieldName)) {
+      // Parse integer
+      const num = parseInt(value, 10);
+      if (!isNaN(num)) {
+        customer[fieldName] = num;
+      }
+    } else {
+      // String field
+      customer[fieldName] = value.trim();
+    }
+  }
+  
+  return customer as Partial<InsertCustomer>;
+}
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -88,50 +143,9 @@ export async function registerRoutes(
 
       for (const data of customerData) {
         try {
-          const customerRecord = {
-            surecDurumu: data["Süreç Durumu"],
-            islemListesi: data["İşlem Listesi"],
-            sonucIslemTipi: data["Sonuç İşlem Tipi"],
-            bitTarih: data["Bit.Tarih"] || null,
-            anaBrans: data["Ana Branş"],
-            araBrans: data["Ara Branş"],
-            unvan: data["Ünvan"] || "Bilinmiyor",
-            musteriTemsilcisi: data["Müşteri Temsilcisi"],
-            sube: data["Şube"],
-            listeGrupAdi: data["Liste Grup Adı"],
-            meslekGrubu: data["Meslek Grubu"],
-            plaka: data["Plaka"],
-            ruhsatNo: data["Ruhsat No"],
-            policeTipi: data["Poliçe Tipi"],
-            policeNo: data["Poliçe No"],
-            gorevliTemsilci: data["Görevli Temsilci"],
-            produktorAdi: data["Prodüktör Adı"],
-            policeAciklamasi: data["Poliçe Açıklaması"],
-            grupKodu: data["Grup Kodu"],
-            kvkk: data["KVKK"],
-            sonIslemTarihi: data["Son İşlem Tarihi"] || null,
-            kayitTarihi: data["Kayıt Tarihi"] || null,
-            veriKaynagi: data["Veri Kaynağı"],
-            portfoyKaynagi: data["Portföy Kaynağı"],
-            tcKimlikNo: data["TC Kimlik No"],
-            vergiNo: data["Vergi No"],
-            gsmNo: data["GSM No"],
-            ePosta: data["E-Posta"],
-            sehir: data["Şehir"],
-            ilce: data["İlçe"],
-            dogumTarihi: data["Doğum Tarihi"] || null,
-            cinsiyet: data["Cinsiyet"],
-            aracMarka: data["Araç Marka"],
-            aracModel: data["Araç Model"],
-            aracModelYili: data["Araç Model Yılı"] ? parseInt(data["Araç Model Yılı"]) : null,
-            policeBitisTarihi: data["Poliçe Bitiş Tarihi"] || null,
-            policeBaslangicTarihi: data["Poliçe Başlangıç Tarihi"] || null,
-            tanzimTarihi: data["Tanzim Tarihi"] || null,
-            iptalNedeni: data["İptal Nedeni"],
-            iptalTarihi: data["İptal Tarihi"] || null,
-            primTutari: data["Prim Tutarı"] ? parseInt(data["Prim Tutarı"]) : null,
-          };
+          const customerRecord = parseCustomerFromCsv(data);
 
+          // Check for duplicates by TC Kimlik No
           if (customerRecord.tcKimlikNo) {
             const existing = await storage.getCustomerByTcKimlik(customerRecord.tcKimlikNo);
             if (existing && !overwrite) {
@@ -143,7 +157,7 @@ export async function registerRoutes(
             }
           }
 
-          const { customer, isNew } = await storage.upsertCustomerByTcKimlik(customerRecord);
+          const { customer, isNew } = await storage.upsertCustomerByTcKimlik(customerRecord as InsertCustomer);
           if (isNew) {
             results.created++;
           } else {
@@ -275,7 +289,7 @@ export async function registerRoutes(
         sehir: c.sehir,
         meslekGrubu: c.meslekGrubu,
         cinsiyet: c.cinsiyet,
-        aracMarka: c.aracMarka,
+        aracMarkasi: c.aracMarkasi,
         kvkk: c.kvkk,
       }));
 
@@ -475,12 +489,12 @@ Sadece JSON array döndür, başka açıklama ekleme.`;
       const prompt = `Sen deneyimli bir sigorta uzmanısın. Aşağıdaki müşteri profilini analiz et ve çapraz satış tavsiyeleri ver.
 
 Müşteri:
-- İsim: ${customer.unvan}
+- İsim: ${customer.musteriIsmi}
 - Meslek: ${customer.meslekGrubu}
 - Şehir: ${customer.sehir}
 - Ana Branş: ${customer.anaBrans}
 - Ara Branş: ${customer.araBrans}
-- Araç: ${customer.aracMarka} ${customer.aracModel}
+- Araç: ${customer.aracMarkasi} ${customer.aracModeli}
 - KVKK: ${customer.kvkk}
 
 Lütfen şu formatta 3-5 tavsiye ver:

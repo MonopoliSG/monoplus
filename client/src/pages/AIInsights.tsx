@@ -315,7 +315,7 @@ export default function AIInsights() {
 interface AnalysisResult {
   recommendations?: string[];
   customers?: Array<{
-    unvan?: string;
+    musteriIsmi?: string;
     name?: string;
     reason?: string;
     score?: number;
@@ -374,7 +374,7 @@ function AnalysisDetail({ analysis, onExport }: { analysis: AiAnalysis; onExport
                   <div className="space-y-2">
                     {result.customers.slice(0, 10).map((customer, i: number) => (
                       <div key={i} className="p-2 rounded bg-muted/50 text-sm">
-                        <p className="font-medium">{customer.unvan || customer.name}</p>
+                        <p className="font-medium">{customer.musteriIsmi || customer.name}</p>
                         {customer.reason && (
                           <p className="text-muted-foreground text-xs">{customer.reason}</p>
                         )}

@@ -36,10 +36,10 @@ export function CustomerProfile({ customer, onClose, aiRecommendations }: Custom
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-4">
           <Avatar className="h-16 w-16">
-            <AvatarFallback className="text-xl">{getInitials(customer.unvan)}</AvatarFallback>
+            <AvatarFallback className="text-xl">{getInitials(customer.musteriIsmi)}</AvatarFallback>
           </Avatar>
           <div>
-            <h2 className="text-xl font-semibold" data-testid="text-customer-name">{customer.unvan}</h2>
+            <h2 className="text-xl font-semibold" data-testid="text-customer-name">{customer.musteriIsmi}</h2>
             <p className="text-muted-foreground">{customer.meslekGrubu || "Meslek belirtilmemiş"}</p>
           </div>
         </div>

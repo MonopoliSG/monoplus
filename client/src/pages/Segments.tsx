@@ -173,7 +173,7 @@ export default function Segments() {
                   <SelectItem value="anaBrans">Ana Branş</SelectItem>
                   <SelectItem value="sehir">Şehir</SelectItem>
                   <SelectItem value="meslekGrubu">Meslek Grubu</SelectItem>
-                  <SelectItem value="aracMarka">Araç Marka</SelectItem>
+                  <SelectItem value="aracMarkasi">Araç Marka</SelectItem>
                 </SelectContent>
               </Select>
             </div>

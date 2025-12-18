@@ -3,7 +3,7 @@ import { CustomerTable, type Customer } from "../CustomerTable";
 const mockCustomers: Customer[] = [
   {
     id: "1",
-    unvan: "Ahmet Yılmaz",
+    musteriIsmi: "Ahmet Yılmaz",
     meslekGrubu: "Mühendis",
     tcKimlik: "12345678901",
     sehir: "İstanbul",
@@ -15,7 +15,7 @@ const mockCustomers: Customer[] = [
   },
   {
     id: "2",
-    unvan: "Fatma Demir",
+    musteriIsmi: "Fatma Demir",
     meslekGrubu: "Doktor",
     tcKimlik: "98765432109",
     sehir: "Ankara",
@@ -32,8 +32,8 @@ export default function CustomerTableExample() {
     <div className="p-4">
       <CustomerTable
         customers={mockCustomers}
-        onViewCustomer={(c) => console.log("View:", c.unvan)}
-        onAnalyzeCustomer={(c) => console.log("Analyze:", c.unvan)}
+        onViewCustomer={(c) => console.log("View:", c.musteriIsmi)}
+        onAnalyzeCustomer={(c) => console.log("Analyze:", c.musteriIsmi)}
       />
     </div>
   );

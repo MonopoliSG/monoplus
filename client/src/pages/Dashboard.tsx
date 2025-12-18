@@ -143,7 +143,7 @@ export default function Dashboard() {
               <ScrollArea className="h-[300px]">
                 <div className="space-y-3">
                   {renewals.map((customer: any) => {
-                    const daysLeft = getDaysUntilRenewal(customer.policeBitisTarihi);
+                    const daysLeft = getDaysUntilRenewal(customer.bitisTarihi);
                     return (
                       <div
                         key={customer.id}
@@ -151,7 +151,7 @@ export default function Dashboard() {
                         data-testid={`card-renewal-${customer.id}`}
                       >
                         <div className="min-w-0">
-                          <p className="font-medium truncate">{customer.unvan}</p>
+                          <p className="font-medium truncate">{customer.musteriIsmi}</p>
                           <p className="text-sm text-muted-foreground">
                             {customer.anaBrans} - {customer.sehir || "Şehir yok"}
                           </p>
@@ -163,7 +163,7 @@ export default function Dashboard() {
                             {daysLeft !== null ? `${daysLeft} gün` : "-"}
                           </Badge>
                           <p className="text-xs text-muted-foreground mt-1">
-                            {formatDate(customer.policeBitisTarihi)}
+                            {formatDate(customer.bitisTarihi)}
                           </p>
                         </div>
                       </div>

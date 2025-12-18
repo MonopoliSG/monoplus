@@ -82,7 +82,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllCustomers(): Promise<Customer[]> {
-    return await db.select().from(customers).orderBy(customers.unvan);
+    return await db.select().from(customers).orderBy(customers.musteriIsmi);
   }
 
   async getCustomer(id: string): Promise<Customer | undefined> {
@@ -135,8 +135,8 @@ export class DatabaseStorage implements IStorage {
       .from(customers)
       .where(
         and(
-          gte(customers.policeBitisTarihi, today.toISOString().split("T")[0]),
-          lte(customers.policeBitisTarihi, thirtyDaysLater.toISOString().split("T")[0])
+          gte(customers.bitisTarihi, today.toISOString().split("T")[0]),
+          lte(customers.bitisTarihi, thirtyDaysLater.toISOString().split("T")[0])
         )
       );
   }

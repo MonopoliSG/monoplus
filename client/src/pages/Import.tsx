@@ -249,7 +249,7 @@ export default function Import() {
                     <div>
                       <h4 className="font-medium text-sm mb-2 text-muted-foreground">Mevcut Kayıt</h4>
                       <div className="space-y-1 text-sm">
-                        <p><strong>İsim:</strong> {dup.existing.unvan}</p>
+                        <p><strong>İsim:</strong> {dup.existing.musteriIsmi}</p>
                         <p><strong>TC:</strong> {dup.existing.tcKimlikNo}</p>
                         <p><strong>Branş:</strong> {dup.existing.anaBrans || "-"}</p>
                         <p><strong>Şehir:</strong> {dup.existing.sehir || "-"}</p>

@@ -69,7 +69,7 @@ export default function Customers() {
       if (searchTerm) {
         const search = searchTerm.toLowerCase();
         if (
-          !customer.unvan?.toLowerCase().includes(search) &&
+          !customer.musteriIsmi?.toLowerCase().includes(search) &&
           !customer.tcKimlikNo?.toLowerCase().includes(search) &&
           !customer.gsmNo?.toLowerCase().includes(search)
         ) {
@@ -87,9 +87,9 @@ export default function Customers() {
 
       if (dateType && dateFrom) {
         const customerDate = dateType === "policeBitis"
-          ? customer.policeBitisTarihi
+          ? customer.bitisTarihi
           : dateType === "policeBaslangic"
-          ? customer.policeBaslangicTarihi
+          ? customer.baslangicTarihi
           : customer.tanzimTarihi;
         
         if (customerDate) {
@@ -101,9 +101,9 @@ export default function Customers() {
 
       if (dateType && dateTo) {
         const customerDate = dateType === "policeBitis"
-          ? customer.policeBitisTarihi
+          ? customer.bitisTarihi
           : dateType === "policeBaslangic"
-          ? customer.policeBaslangicTarihi
+          ? customer.baslangicTarihi
           : customer.tanzimTarihi;
         
         if (customerDate) {
@@ -293,7 +293,7 @@ export default function Customers() {
                     <TableRow key={customer.id} data-testid={`row-customer-${customer.id}`}>
                       <TableCell>
                         <div>
-                          <p className="font-medium">{customer.unvan}</p>
+                          <p className="font-medium">{customer.musteriIsmi}</p>
                           <p className="text-sm text-muted-foreground">{customer.gsmNo || "-"}</p>
                         </div>
                       </TableCell>
@@ -302,12 +302,12 @@ export default function Customers() {
                       <TableCell>
                         {customer.anaBrans && <Badge variant="secondary">{customer.anaBrans}</Badge>}
                       </TableCell>
-                      <TableCell className="font-mono text-sm">{customer.policeNo || "-"}</TableCell>
+                      <TableCell className="font-mono text-sm">{customer.policeNumarasi || "-"}</TableCell>
                       <TableCell>
-                        {customer.policeBitisTarihi ? (
+                        {customer.bitisTarihi ? (
                           <div className="flex items-center gap-1 text-sm">
                             <Calendar className="h-3 w-3" />
-                            {formatDate(customer.policeBitisTarihi)}
+                            {formatDate(customer.bitisTarihi)}
                           </div>
                         ) : "-"}
                       </TableCell>
@@ -344,7 +344,7 @@ export default function Customers() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label className="text-muted-foreground">Ünvan</Label>
-                    <p className="font-medium">{selectedCustomer.unvan}</p>
+                    <p className="font-medium">{selectedCustomer.musteriIsmi}</p>
                   </div>
                   <div>
                     <Label className="text-muted-foreground">TC Kimlik No</Label>
@@ -374,7 +374,7 @@ export default function Customers() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label className="text-muted-foreground">Poliçe No</Label>
-                    <p className="font-mono">{selectedCustomer.policeNo || "-"}</p>
+                    <p className="font-mono">{selectedCustomer.policeNumarasi || "-"}</p>
                   </div>
                   <div>
                     <Label className="text-muted-foreground">Ana Branş</Label>
@@ -386,11 +386,11 @@ export default function Customers() {
                   </div>
                   <div>
                     <Label className="text-muted-foreground">Başlangıç Tarihi</Label>
-                    <p>{formatDate(selectedCustomer.policeBaslangicTarihi)}</p>
+                    <p>{formatDate(selectedCustomer.baslangicTarihi)}</p>
                   </div>
                   <div>
                     <Label className="text-muted-foreground">Bitiş Tarihi</Label>
-                    <p>{formatDate(selectedCustomer.policeBitisTarihi)}</p>
+                    <p>{formatDate(selectedCustomer.bitisTarihi)}</p>
                   </div>
                   <div>
                     <Label className="text-muted-foreground">Tanzim Tarihi</Label>
@@ -399,25 +399,25 @@ export default function Customers() {
                 </div>
               </div>
 
-              {selectedCustomer.aracMarka && (
+              {selectedCustomer.aracMarkasi && (
                 <div className="space-y-4">
                   <h4 className="font-medium">Araç Bilgileri</h4>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label className="text-muted-foreground">Marka</Label>
-                      <p>{selectedCustomer.aracMarka}</p>
+                      <p>{selectedCustomer.aracMarkasi}</p>
                     </div>
                     <div>
                       <Label className="text-muted-foreground">Model</Label>
-                      <p>{selectedCustomer.aracModel || "-"}</p>
+                      <p>{selectedCustomer.aracModeli || "-"}</p>
                     </div>
                     <div>
                       <Label className="text-muted-foreground">Model Yılı</Label>
-                      <p>{selectedCustomer.aracModelYili || "-"}</p>
+                      <p>{selectedCustomer.modelYili || "-"}</p>
                     </div>
                     <div>
                       <Label className="text-muted-foreground">Plaka</Label>
-                      <p>{selectedCustomer.plaka || "-"}</p>
+                      <p>{selectedCustomer.aracPlakasi || "-"}</p>
                     </div>
                   </div>
                 </div>

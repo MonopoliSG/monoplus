@@ -80,7 +80,7 @@ function AuthenticatedLayout() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider defaultTheme="light" storageKey="sigorta-crm-theme">
+      <ThemeProvider defaultTheme="light" storageKey="monoplus-theme">
         <TooltipProvider>
           <AuthenticatedLayout />
           <Toaster />

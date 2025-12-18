@@ -21,7 +21,7 @@ import { Search, MoreVertical, Eye, Sparkles, Phone } from "lucide-react";
 
 export interface Customer {
   id: string;
-  unvan: string;
+  musteriIsmi: string;
   meslekGrubu: string;
   tcKimlik: string;
   sehir: string;
@@ -43,7 +43,7 @@ export function CustomerTable({ customers, onViewCustomer, onAnalyzeCustomer }: 
   const [searchTerm, setSearchTerm] = useState("");
 
   const filteredCustomers = customers.filter((customer) =>
-    customer.unvan.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    customer.musteriIsmi.toLowerCase().includes(searchTerm.toLowerCase()) ||
     customer.tcKimlik.includes(searchTerm) ||
     customer.sehir.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -97,11 +97,11 @@ export function CustomerTable({ customers, onViewCustomer, onAnalyzeCustomer }: 
                     <div className="flex items-center gap-3">
                       <Avatar className="h-8 w-8">
                         <AvatarFallback className="text-xs">
-                          {getInitials(customer.unvan)}
+                          {getInitials(customer.musteriIsmi)}
                         </AvatarFallback>
                       </Avatar>
                       <div>
-                        <div className="font-medium">{customer.unvan}</div>
+                        <div className="font-medium">{customer.musteriIsmi}</div>
                         <div className="text-xs text-muted-foreground">{customer.gsmNo}</div>
                       </div>
                     </div>
