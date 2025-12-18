@@ -1231,8 +1231,16 @@ Sadece JSON objesi döndür.`;
       const city = req.query.city as string;
       const customerType = req.query.customerType as string;
       const policyType = req.query.policyType as string;
-      const hashtagsParam = (req.query.hashtags as string) || (req.query.hashtag as string);
-      const hashtags = hashtagsParam ? hashtagsParam.split(",").map(h => h.trim()).filter(h => h) : undefined;
+      let hashtags: string[] | undefined;
+      const hashtagQuery = req.query.hashtag;
+      const hashtagsQuery = req.query.hashtags as string;
+      if (Array.isArray(hashtagQuery)) {
+        hashtags = hashtagQuery.map(h => String(h).trim()).filter(h => h);
+      } else if (hashtagQuery) {
+        hashtags = [String(hashtagQuery).trim()];
+      } else if (hashtagsQuery) {
+        hashtags = hashtagsQuery.split(",").map(h => h.trim()).filter(h => h);
+      }
       const product = req.query.product as string;
       const vehicleBrand = req.query.vehicleBrand as string;
       const hasAiAnalysis = req.query.hasAiAnalysis === "true";

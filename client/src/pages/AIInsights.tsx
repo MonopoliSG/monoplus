@@ -44,9 +44,9 @@ function buildProfileFilterUrl(filters: {
   if (filters.policyType) params.set("policyType", filters.policyType);
   if (filters.product) params.set("product", filters.product);
   if (filters.hashtags && filters.hashtags.length > 0) {
-    params.set("hashtags", filters.hashtags.join(","));
+    filters.hashtags.forEach(h => params.append("hashtag", h));
   } else if (filters.hashtag) {
-    params.set("hashtags", filters.hashtag);
+    params.append("hashtag", filters.hashtag);
   }
   if (filters.hasBranch) params.set("hasBranch", filters.hasBranch);
   if (filters.notHasBranch) params.set("notHasBranch", filters.notHasBranch);

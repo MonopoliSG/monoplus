@@ -57,7 +57,8 @@ export default function CustomerProfiles() {
   const [customerType, setCustomerType] = useState(searchParams.get("customerType") || "");
   const [policyType, setPolicyType] = useState(searchParams.get("policyType") || "");
   const [product, setProduct] = useState(searchParams.get("product") || "");
-  const initialHashtags = searchParams.get("hashtags") || searchParams.get("hashtag") || "";
+  const hashtagParams = searchParams.getAll("hashtag");
+  const initialHashtags = hashtagParams.length > 0 ? hashtagParams.join(",") : (searchParams.get("hashtags") || "");
   const [hashtags, setHashtags] = useState(initialHashtags);
   const [hasBranch, setHasBranch] = useState(searchParams.get("hasBranch") || "");
   const [notHasBranch, setNotHasBranch] = useState(searchParams.get("notHasBranch") || "");
@@ -82,7 +83,9 @@ export default function CustomerProfiles() {
       if (customerType && customerType !== "all") params.set("customerType", customerType);
       if (policyType && policyType !== "all") params.set("policyType", policyType);
       if (product && product !== "all") params.set("product", product);
-      if (hashtags) params.set("hashtags", hashtags);
+      if (hashtags) {
+        hashtags.split(",").map(h => h.trim()).filter(h => h).forEach(h => params.append("hashtag", h));
+      }
       if (hasBranch) params.set("hasBranch", hasBranch);
       if (notHasBranch) params.set("notHasBranch", notHasBranch);
       if (policyCountMin) params.set("policyCountMin", policyCountMin);
@@ -147,7 +150,9 @@ export default function CustomerProfiles() {
     if (customerType && customerType !== "all") params.set("customerType", customerType);
     if (policyType && policyType !== "all") params.set("policyType", policyType);
     if (product && product !== "all") params.set("product", product);
-    if (hashtags) params.set("hashtags", hashtags);
+    if (hashtags) {
+      hashtags.split(",").map(h => h.trim()).filter(h => h).forEach(h => params.append("hashtag", h));
+    }
     if (hasBranch) params.set("hasBranch", hasBranch);
     if (notHasBranch) params.set("notHasBranch", notHasBranch);
     if (policyCountMin) params.set("policyCountMin", policyCountMin);
