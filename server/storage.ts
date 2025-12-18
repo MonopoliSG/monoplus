@@ -375,6 +375,7 @@ export class DatabaseStorage implements IStorage {
     }
     if (filters.segment) {
       const segmentLower = filters.segment.toLowerCase().replace(/i̇/g, 'i').replace(/ı/g, 'i');
+      console.log("[DEBUG] Segment filter raw:", filters.segment, "-> normalized:", segmentLower);
       const segmentConditions: any[] = [];
       
       // Müşteri tipi filtreleme
@@ -428,6 +429,7 @@ export class DatabaseStorage implements IStorage {
         segmentConditions.push(like(customers.anaBrans, `%Kaza%`));
       }
       
+      console.log("[DEBUG] Segment conditions count:", segmentConditions.length);
       if (segmentConditions.length > 0) {
         conditions.push(or(...segmentConditions));
       }

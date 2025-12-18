@@ -137,6 +137,8 @@ export async function registerRoutes(
       const branch = req.query.branch as string;
       const segment = req.query.segment as string;
 
+      console.log("[DEBUG] Paginated customers request:", { page, limit, search, city, branch, segment });
+
       const result = await storage.getCustomersPaginated({
         page,
         limit,
