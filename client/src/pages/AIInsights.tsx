@@ -106,6 +106,7 @@ interface SegmentMetadata {
     customerType?: string;
     hasBranch?: string;
     notHasBranch?: string;
+    hashtag?: string;
     minAge?: number;
     // Advanced filters for management reports
     hasBranch2?: string;
@@ -145,6 +146,7 @@ function buildSegmentProfileUrl(segmentTitle: string, metadata?: SegmentMetadata
     policyType?: string;
     hasBranch?: string;
     notHasBranch?: string;
+    hashtag?: string;
     policyCountMin?: number;
     policyCountMax?: number;
     vehicleCountMin?: number;
@@ -170,6 +172,7 @@ function buildSegmentProfileUrl(segmentTitle: string, metadata?: SegmentMetadata
     if (f.policyCountMax !== undefined) filters.policyCountMax = f.policyCountMax;
     if (f.vehicleCountMin !== undefined) filters.vehicleCountMin = f.vehicleCountMin;
     if (f.vehicleAgeMax !== undefined) filters.vehicleAgeMax = f.vehicleAgeMax;
+    if (f.hashtag) filters.hashtag = f.hashtag;
   }
   
   // Also check legacy metadata fields

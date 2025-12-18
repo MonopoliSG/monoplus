@@ -1123,6 +1123,15 @@ Sadece JSON objesi döndür, başka metin ekleme.`;
         hashtags: p.aiAnaliz,
       }));
 
+      // Get available hashtags from profiles
+      const allHashtags = new Set<string>();
+      sampledProfiles.forEach((p: any) => {
+        if (p.hashtags) {
+          p.hashtags.split(/\s+/).filter((t: string) => t.startsWith('#')).forEach((t: string) => allHashtags.add(t));
+        }
+      });
+      const availableHashtags = Array.from(allHashtags).slice(0, 30);
+
       const systemPrompt = `Sen yaratıcı bir sigorta analisti. Görevin: Müşteri verilerini analiz ederek ŞAŞIRTICI ve NİŞ bir segment bulmak.
 
 Kurallar:
@@ -1131,13 +1140,16 @@ Kurallar:
 3. Ya yeni ürün önerisi YA çapraz satış fırsatı YA da beklenmedik bir segment olsun
 4. Gerçekten şaşırtıcı ve ilginç olsun!
 
-Örnek niş segmentler:
-- "Antalya'da hem kasko hem seyahat sigortası olan ve #yuksek_potansiyel hashtag'i olan 5 müşteri - bunlara luxury seyahat paketi sunulabilir"
-- "İstanbul'daki #kurumsal ve #saglik hashtag'li 7 müşteri - grup sağlık sigortası upgrade fırsatı"
-- "Birden fazla aracı olan ve sadece trafik sigortası bulunan 8 müşteri - kasko dönüşüm potansiyeli yüksek"
+Kullanılabilir hashtag'ler: ${availableHashtags.join(", ")}
 
 Müşteri profilleri (örnek ${sampleSize} profil):
 ${JSON.stringify(sampledProfiles.slice(0, 50), null, 2)}
+
+ÖNEMLİ: Segment için FİLTRE objesi döndürmelisin. Kullanılabilir filtreler:
+- customerType: "Bireysel" veya "Kurumsal"
+- city: Şehir adı (örn: "İSTANBUL")
+- hashtag: Tek bir hashtag (örn: "#sadik_musteri" veya "#yuksek_potansiyel")
+- hasBranch: Ürün adı (örn: "Sağlık" veya "Oto Kaza (Kasko)")
 
 Şu JSON formatında döndür:
 {
@@ -1146,9 +1158,14 @@ ${JSON.stringify(sampledProfiles.slice(0, 50), null, 2)}
   "targetCustomers": ["Müşteri adı 1", "Müşteri adı 2", ...],
   "commonTraits": ["Ortak özellik 1", "Ortak özellik 2"],
   "recommendation": "Spesifik ürün/kampanya önerisi",
-  "potentialRevenue": "Tahmini gelir potansiyeli"
+  "potentialRevenue": "Tahmini gelir potansiyeli",
+  "filters": {
+    "customerType": "Bireysel",
+    "hashtag": "#sadik_musteri"
+  }
 }
 
+filters objesinde SADECE uygun filtreleri dahil et. Hashtag kullanıyorsan mutlaka # ile başlasın.
 Sadece JSON objesi döndür.`;
 
       const response = await openai.chat.completions.create({
@@ -1176,6 +1193,7 @@ Sadece JSON objesi döndür.`;
             isSurprise: true,
             targetCustomers: surpriseData.targetCustomers || [],
             commonTraits: surpriseData.commonTraits || [],
+            filters: surpriseData.filters || {},
           },
           isActive: true,
         };
