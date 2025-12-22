@@ -36,6 +36,7 @@ export interface IStorage {
   getCustomerByTcKimlik(tcKimlik: string): Promise<Customer | undefined>;
   createCustomer(customer: InsertCustomer): Promise<Customer>;
   updateCustomer(id: string, customer: Partial<InsertCustomer>): Promise<Customer>;
+  updateCustomerFields(id: string, fields: Record<string, number | string>): Promise<Customer>;
   upsertCustomerByTcKimlik(customer: InsertCustomer): Promise<{ customer: Customer; isNew: boolean }>;
   getCustomersWithRenewalIn30Days(): Promise<Customer[]>;
   getCustomersByIds(ids: string[]): Promise<Customer[]>;
@@ -184,6 +185,20 @@ export class DatabaseStorage implements IStorage {
     const [updated] = await db
       .update(customers)
       .set({ ...customer, updatedAt: new Date() })
+      .where(eq(customers.id, id))
+      .returning();
+    return updated;
+  }
+
+  async updateCustomerFields(id: string, fields: Record<string, number | string>): Promise<Customer> {
+    // Convert numeric fields to string format for decimal columns
+    const updateData: Record<string, any> = { updatedAt: new Date() };
+    for (const [key, value] of Object.entries(fields)) {
+      updateData[key] = typeof value === 'number' ? value.toString() : value;
+    }
+    const [updated] = await db
+      .update(customers)
+      .set(updateData)
       .where(eq(customers.id, id))
       .returning();
     return updated;

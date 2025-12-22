@@ -32,6 +32,69 @@ const decimalFields = new Set([
 // Integer fields in the customer schema
 const integerFields = new Set(["taksitSayisi", "modelYili"]);
 
+// Smart number parser - automatically detects Turkish (13.807,57) vs International (13807.57) format
+function parseSmartDecimal(value: string): number | null {
+  if (!value || value.trim() === "") return null;
+  
+  const trimmed = value.trim();
+  
+  // Remove currency symbols and spaces
+  const cleaned = trimmed.replace(/[₺TL$€\s]/gi, "").trim();
+  
+  if (cleaned === "") return null;
+  
+  const hasComma = cleaned.includes(",");
+  const hasDot = cleaned.includes(".");
+  
+  let numStr: string;
+  
+  if (hasComma && hasDot) {
+    // Both separators present - determine which is decimal
+    const lastComma = cleaned.lastIndexOf(",");
+    const lastDot = cleaned.lastIndexOf(".");
+    
+    if (lastComma > lastDot) {
+      // Turkish format: 13.807,57 (dot is thousands, comma is decimal)
+      numStr = cleaned.replace(/\./g, "").replace(",", ".");
+    } else {
+      // US format: 13,807.57 (comma is thousands, dot is decimal)
+      numStr = cleaned.replace(/,/g, "");
+    }
+  } else if (hasComma) {
+    // Only comma - could be Turkish decimal (13807,57) or thousands (13,807)
+    const parts = cleaned.split(",");
+    const lastPart = parts[parts.length - 1];
+    
+    // If last part has 1-2 digits and there's only one comma, it's likely a decimal
+    if (parts.length === 2 && lastPart.length <= 2) {
+      // Turkish decimal: 13807,57
+      numStr = cleaned.replace(",", ".");
+    } else {
+      // Thousands separator: 13,807 or 1,234,567
+      numStr = cleaned.replace(/,/g, "");
+    }
+  } else if (hasDot) {
+    // Only dot - could be decimal (13807.57) or thousands (13.807)
+    const parts = cleaned.split(".");
+    const lastPart = parts[parts.length - 1];
+    
+    // If last part has 3 digits and there are multiple dots, it's thousands separator (Turkish)
+    if (parts.length > 2 || (parts.length === 2 && lastPart.length === 3 && parts[0].length <= 3)) {
+      // Turkish thousands: 13.807 or 1.234.567
+      numStr = cleaned.replace(/\./g, "");
+    } else {
+      // Standard decimal: 13807.57
+      numStr = cleaned;
+    }
+  } else {
+    // No separators - plain number
+    numStr = cleaned;
+  }
+  
+  const num = parseFloat(numStr);
+  return isNaN(num) ? null : num;
+}
+
 // Parse CSV row to customer record using column mapping
 function parseCustomerFromCsv(csvRow: Record<string, string>): Partial<InsertCustomer> {
   const customer: Record<string, any> = {};
@@ -47,10 +110,9 @@ function parseCustomerFromCsv(csvRow: Record<string, string>): Partial<InsertCus
         customer[fieldName] = dateStr;
       }
     } else if (decimalFields.has(fieldName)) {
-      // Parse decimal - handle Turkish number format
-      const numStr = value.replace(/\./g, "").replace(",", ".");
-      const num = parseFloat(numStr);
-      if (!isNaN(num)) {
+      // Parse decimal - use smart format detection
+      const num = parseSmartDecimal(value);
+      if (num !== null) {
         customer[fieldName] = num.toString();
       }
     } else if (integerFields.has(fieldName)) {
@@ -1920,6 +1982,137 @@ Sadece JSON array döndür, başka açıklama ekleme.`;
     } catch (error) {
       console.error("Error in AI profile analysis:", error);
       res.status(500).json({ message: "AI analizi başarısız oldu" });
+    }
+  });
+
+  // Data validation and correction endpoint - fixes incorrectly imported numeric values
+  app.post("/api/data/validate-and-fix", isAuthenticated, async (req, res) => {
+    try {
+      const { dryRun = true, correctionFactor } = req.body;
+      
+      // Get all customers with potentially incorrect values
+      const customers = await storage.getAllCustomers();
+      const issues: Array<{
+        id: string;
+        field: string;
+        currentValue: number;
+        suggestedValue: number;
+        correctionFactor: number;
+        reason: string;
+      }> = [];
+      
+      // Known correct value ranges for insurance premiums in Turkey (TL)
+      // These are realistic bounds for Turkish insurance market
+      const expectedRanges: Record<string, { min: number; max: number; typical: number }> = {
+        brut: { min: 50, max: 200000, typical: 15000 },
+        net: { min: 50, max: 200000, typical: 12000 },
+        komisyon: { min: 0, max: 50000, typical: 2000 },
+        pesinat: { min: 0, max: 100000, typical: 5000 },
+        odenen: { min: 0, max: 200000, typical: 10000 },
+        kalan: { min: 0, max: 200000, typical: 5000 },
+        aracBedeli: { min: 10000, max: 5000000, typical: 500000 },
+      };
+      
+      // Test multiple correction factors - decimal parsing can shift by various magnitudes
+      const testFactors = correctionFactor ? [correctionFactor] : [10, 100, 9, 90];
+      
+      for (const customer of customers) {
+        for (const [field, range] of Object.entries(expectedRanges)) {
+          const value = parseFloat((customer as any)[field]);
+          if (isNaN(value) || value === 0) continue;
+          
+          // If value is within reasonable range, skip
+          if (value >= range.min && value <= range.max) continue;
+          
+          // Value is outside expected range - try to find a correction factor
+          for (const factor of testFactors) {
+            const corrected = value / factor;
+            
+            // Check if corrected value falls within expected range
+            if (corrected >= range.min && corrected <= range.max) {
+              // Additional sanity check: corrected value should be close to typical values
+              // or at least make sense in context
+              const isReasonable = corrected <= range.max && corrected >= range.min;
+              
+              if (isReasonable) {
+                issues.push({
+                  id: customer.id,
+                  field,
+                  currentValue: value,
+                  suggestedValue: Math.round(corrected * 100) / 100, // Round to 2 decimal places
+                  correctionFactor: factor,
+                  reason: `Değer aralık dışı (${value.toLocaleString('tr-TR')} TL). ÷${factor} ile düzeltildi: ${corrected.toLocaleString('tr-TR', { maximumFractionDigits: 2 })} TL`
+                });
+                break; // Use first matching factor
+              }
+            }
+          }
+        }
+      }
+      
+      let fixed = 0;
+      if (!dryRun && issues.length > 0) {
+        // Group issues by customer ID
+        const customerFixes: Record<string, Record<string, number>> = {};
+        for (const issue of issues) {
+          if (!customerFixes[issue.id]) {
+            customerFixes[issue.id] = {};
+          }
+          customerFixes[issue.id][issue.field] = issue.suggestedValue;
+        }
+        
+        // Apply fixes
+        for (const [customerId, fixes] of Object.entries(customerFixes)) {
+          await storage.updateCustomerFields(customerId, fixes);
+          fixed++;
+        }
+      }
+      
+      // Group issues by correction factor for summary
+      const factorSummary: Record<number, number> = {};
+      for (const issue of issues) {
+        factorSummary[issue.correctionFactor] = (factorSummary[issue.correctionFactor] || 0) + 1;
+      }
+      
+      res.json({
+        success: true,
+        dryRun,
+        totalCustomers: customers.length,
+        issuesFound: issues.length,
+        customersWithIssues: Array.from(new Set(issues.map(i => i.id))).length,
+        factorSummary,
+        fixed: dryRun ? 0 : fixed,
+        issues: issues.slice(0, 100), // Limit response size
+        message: dryRun 
+          ? `${issues.length} potansiyel sorun bulundu. Düzeltmek için dryRun: false gönderin.`
+          : `${fixed} müşteri kaydı düzeltildi.`
+      });
+    } catch (error) {
+      console.error("Error in data validation:", error);
+      res.status(500).json({ message: "Veri doğrulama hatası" });
+    }
+  });
+
+  // Quick fix for specific customer's numeric values
+  app.post("/api/data/fix-customer/:id", isAuthenticated, async (req, res) => {
+    try {
+      const { corrections } = req.body; // { brut: 13807.57, net: 12500.00, ... }
+      
+      if (!corrections || typeof corrections !== 'object') {
+        return res.status(400).json({ message: "Düzeltilecek değerler gerekli" });
+      }
+      
+      await storage.updateCustomerFields(req.params.id, corrections);
+      
+      res.json({
+        success: true,
+        message: "Müşteri değerleri güncellendi",
+        customerId: req.params.id,
+        corrections
+      });
+    } catch (error) {
+      console.error("Error fixing customer data:", error);
+      res.status(500).json({ message: "Müşteri verisi güncellenemedi" });
     }
   });
 
