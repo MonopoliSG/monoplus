@@ -928,22 +928,54 @@ Sadece JSON array döndür.`;
 
       // Get existing predictions to find already analyzed customers
       const existingPredictions = await storage.getCustomerPredictions({ analysisType: type });
-      const analyzedProfileIds = new Set(existingPredictions.map(p => p.profileId || p.customerId));
       
-      // Only analyze profiles that haven't been analyzed yet (incremental)
+      // Create a map of profileId -> prediction (with createdAt for comparison)
+      const predictionMap = new Map<string, typeof existingPredictions[0]>();
+      existingPredictions.forEach(p => {
+        const key = p.profileId || p.customerId;
+        if (key) predictionMap.set(key, p);
+      });
+      
+      // Filter profiles that need analysis:
+      // 1. No existing prediction OR
+      // 2. Customer was updated after the prediction was created (new data added)
       let profilesToAnalyze = forceReanalyze 
         ? allProfiles 
-        : allProfiles.filter(p => !analyzedProfileIds.has(p.id));
+        : allProfiles.filter(p => {
+            const existingPred = predictionMap.get(p.id);
+            if (!existingPred) return true; // No prediction - needs analysis
+            
+            // Check if customer was updated after prediction was created
+            const profileUpdated = p.updatedAt ? new Date(p.updatedAt) : null;
+            const predCreated = existingPred.createdAt ? new Date(existingPred.createdAt) : null;
+            
+            if (profileUpdated && predCreated && profileUpdated > predCreated) {
+              console.log(`Profile ${p.id} updated after prediction, will re-analyze`);
+              return true; // Customer updated since prediction - needs re-analysis
+            }
+            
+            return false; // Already analyzed and not updated
+          });
       
-      console.log(`Total profiles: ${allProfiles.length}, Already analyzed: ${analyzedProfileIds.size}, To analyze: ${profilesToAnalyze.length}`);
+      // Delete old predictions for profiles that will be re-analyzed (updated customers)
+      const profilesToReanalyzeIds = profilesToAnalyze
+        .filter(p => predictionMap.has(p.id))
+        .map(p => p.id);
       
-      // If all profiles are already analyzed, return existing predictions
+      if (profilesToReanalyzeIds.length > 0 && !forceReanalyze) {
+        console.log(`Deleting ${profilesToReanalyzeIds.length} old predictions for updated customers`);
+        await storage.deleteCustomerPredictionsByProfileIds(type, profilesToReanalyzeIds);
+      }
+      
+      console.log(`Total profiles: ${allProfiles.length}, Already analyzed: ${predictionMap.size}, To analyze: ${profilesToAnalyze.length}`);
+      
+      // If all profiles are already analyzed and up-to-date, return existing predictions
       if (profilesToAnalyze.length === 0) {
         return res.json({ 
           success: true, 
           count: existingPredictions.length, 
           predictions: existingPredictions,
-          message: "Tüm müşteriler zaten analiz edilmiş. Yeni müşteri yok."
+          message: "Tüm müşteriler zaten analiz edilmiş. Yeni veya güncellenmiş müşteri yok."
         });
       }
 
