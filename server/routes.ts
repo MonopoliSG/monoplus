@@ -82,6 +82,226 @@ if (openaiApiKey) {
   console.warn("WARNING: No OpenAI API key found. AI features will be disabled.");
 }
 
+// Rule-based cross-sell recommendation engine
+interface CrossSellRecommendation {
+  customerId: string;
+  profileId: string;
+  customerName: string;
+  currentProduct: string;
+  suggestedProduct: string;
+  probability: number;
+  reason: string;
+  city: string | null;
+  hashtags: string | null;
+}
+
+function parseHashtags(aiAnaliz: string | null): string[] {
+  if (!aiAnaliz) return [];
+  return aiAnaliz.split(/\s+/).filter(tag => tag.startsWith('#')).map(tag => tag.toLowerCase());
+}
+
+function hasProduct(products: string | null, productName: string): boolean {
+  if (!products) return false;
+  const lowerProducts = products.toLowerCase();
+  return lowerProducts.includes(productName.toLowerCase());
+}
+
+function getCustomerSegment(hashtags: string[]): 'premium' | 'mid' | 'budget' {
+  const premiumTags = ['#premium', '#asegmenti', '#a_segmenti', '#vip', '#yüksek_gelir', '#yuksek_gelir', '#zengin'];
+  const budgetTags = ['#csegmenti', '#c_segmenti', '#dar_gelir', '#düşük_gelir', '#dusuk_gelir', '#budget'];
+  
+  if (hashtags.some(h => premiumTags.includes(h))) return 'premium';
+  if (hashtags.some(h => budgetTags.includes(h))) return 'budget';
+  return 'mid';
+}
+
+function generateCrossSellRecommendations(profiles: any[]): CrossSellRecommendation[] {
+  const recommendations: CrossSellRecommendation[] = [];
+  
+  for (const profile of profiles) {
+    const products = profile.sahipOlunanUrunler || '';
+    const hashtags = parseHashtags(profile.aiAnaliz);
+    const segment = getCustomerSegment(hashtags);
+    const policyCount = profile.toplamPolice || 0;
+    
+    const hasKasko = hasProduct(products, 'kasko');
+    const hasTrafik = hasProduct(products, 'trafik');
+    const hasSaglik = hasProduct(products, 'sağlık') || hasProduct(products, 'saglik');
+    const hasOzelSaglik = hasProduct(products, 'özel sağlık') || hasProduct(products, 'ozel saglik');
+    const hasDask = hasProduct(products, 'dask');
+    const hasKonut = hasProduct(products, 'konut');
+    const hasTamamlayiciSaglik = hasProduct(products, 'tamamlayıcı') || hasProduct(products, 'tamamlayici');
+    const hasFerdiKaza = hasProduct(products, 'ferdi kaza');
+    const hasSeyahat = hasProduct(products, 'seyahat');
+    
+    // Rule 1: Vehicle insurance gaps - Traffic without Kasko
+    if (hasTrafik && !hasKasko) {
+      let probability = 70;
+      let reason = 'Trafik sigortası var ancak kasko yok - araç için kapsamlı koruma önerilir';
+      
+      if (segment === 'premium') {
+        probability = 90;
+        reason = 'Premium müşteri, trafik sigortası var ancak kasko yok - yüksek primli kasko önerilir';
+      } else if (segment === 'mid') {
+        probability = 75;
+      } else {
+        probability = 50;
+        reason = 'Bütçe dostu müşteri - uygun fiyatlı kasko seçenekleri sunulabilir';
+      }
+      
+      recommendations.push({
+        customerId: profile.hesapKodu || profile.id,
+        profileId: profile.id,
+        customerName: profile.musteriIsmi,
+        currentProduct: 'Trafik',
+        suggestedProduct: 'Kasko',
+        probability,
+        reason,
+        city: profile.sehir,
+        hashtags: profile.aiAnaliz,
+      });
+    }
+    
+    // Rule 2: Vehicle insurance gaps - Kasko without Traffic
+    if (hasKasko && !hasTrafik) {
+      recommendations.push({
+        customerId: profile.hesapKodu || profile.id,
+        profileId: profile.id,
+        customerName: profile.musteriIsmi,
+        currentProduct: 'Kasko',
+        suggestedProduct: 'Trafik',
+        probability: 95,
+        reason: 'Kasko var ancak zorunlu trafik sigortası yok - yasal zorunluluk',
+        city: profile.sehir,
+        hashtags: profile.aiAnaliz,
+      });
+    }
+    
+    // Rule 3: Premium/Multi-policy customers without high-value products
+    if ((segment === 'premium' || policyCount >= 3) && !hasOzelSaglik) {
+      recommendations.push({
+        customerId: profile.hesapKodu || profile.id,
+        profileId: profile.id,
+        customerName: profile.musteriIsmi,
+        currentProduct: products.split(',')[0]?.trim() || 'Çoklu Poliçe',
+        suggestedProduct: 'Özel Sağlık Sigortası',
+        probability: segment === 'premium' ? 85 : 70,
+        reason: segment === 'premium' 
+          ? 'Premium segment müşteri - yüksek primli özel sağlık sigortası için ideal aday'
+          : 'Birden fazla poliçesi olan sadık müşteri - özel sağlık sigortası önerilir',
+        city: profile.sehir,
+        hashtags: profile.aiAnaliz,
+      });
+    }
+    
+    // Rule 4: Premium customers without Kasko
+    if (segment === 'premium' && !hasKasko && hasTrafik) {
+      // Already covered in Rule 1, skip
+    } else if (segment === 'premium' && !hasKasko && !hasTrafik) {
+      recommendations.push({
+        customerId: profile.hesapKodu || profile.id,
+        profileId: profile.id,
+        customerName: profile.musteriIsmi,
+        currentProduct: products.split(',')[0]?.trim() || 'Diğer',
+        suggestedProduct: 'Kasko',
+        probability: 80,
+        reason: 'Premium segment müşteri - araç sigortası portföyüne eklenebilir',
+        city: profile.sehir,
+        hashtags: profile.aiAnaliz,
+      });
+    }
+    
+    // Rule 5: Budget segment - offer essential affordable products
+    if (segment === 'budget') {
+      if (!hasTamamlayiciSaglik && !hasSaglik) {
+        recommendations.push({
+          customerId: profile.hesapKodu || profile.id,
+          profileId: profile.id,
+          customerName: profile.musteriIsmi,
+          currentProduct: products.split(',')[0]?.trim() || 'Mevcut Poliçe',
+          suggestedProduct: 'Tamamlayıcı Sağlık Sigortası',
+          probability: 65,
+          reason: 'Bütçe dostu segment - uygun fiyatlı tamamlayıcı sağlık sigortası önerilir',
+          city: profile.sehir,
+          hashtags: profile.aiAnaliz,
+        });
+      }
+      
+      if (!hasTrafik && !hasKasko) {
+        recommendations.push({
+          customerId: profile.hesapKodu || profile.id,
+          profileId: profile.id,
+          customerName: profile.musteriIsmi,
+          currentProduct: products.split(',')[0]?.trim() || 'Mevcut Poliçe',
+          suggestedProduct: 'Trafik Sigortası',
+          probability: 60,
+          reason: 'Araç sigortası yok - zorunlu trafik sigortası önerilir',
+          city: profile.sehir,
+          hashtags: profile.aiAnaliz,
+        });
+      }
+    }
+    
+    // Rule 6: Mid-segment customers - balanced recommendations
+    if (segment === 'mid') {
+      if (!hasDask && !hasKonut) {
+        recommendations.push({
+          customerId: profile.hesapKodu || profile.id,
+          profileId: profile.id,
+          customerName: profile.musteriIsmi,
+          currentProduct: products.split(',')[0]?.trim() || 'Mevcut Poliçe',
+          suggestedProduct: 'DASK + Konut Sigortası',
+          probability: 55,
+          reason: 'Konut sigortası yok - DASK ve konut sigortası paketi önerilir',
+          city: profile.sehir,
+          hashtags: profile.aiAnaliz,
+        });
+      }
+      
+      if (!hasFerdiKaza && policyCount >= 2) {
+        recommendations.push({
+          customerId: profile.hesapKodu || profile.id,
+          profileId: profile.id,
+          customerName: profile.musteriIsmi,
+          currentProduct: products.split(',')[0]?.trim() || 'Mevcut Poliçe',
+          suggestedProduct: 'Ferdi Kaza Sigortası',
+          probability: 50,
+          reason: 'Sadık müşteri - ferdi kaza sigortası ile portföy tamamlanabilir',
+          city: profile.sehir,
+          hashtags: profile.aiAnaliz,
+        });
+      }
+    }
+    
+    // Rule 7: Travel insurance for premium or frequent travelers
+    if ((segment === 'premium' || segment === 'mid') && !hasSeyahat && policyCount >= 2) {
+      recommendations.push({
+        customerId: profile.hesapKodu || profile.id,
+        profileId: profile.id,
+        customerName: profile.musteriIsmi,
+        currentProduct: products.split(',')[0]?.trim() || 'Mevcut Poliçe',
+        suggestedProduct: 'Seyahat Sağlık Sigortası',
+        probability: segment === 'premium' ? 60 : 45,
+        reason: 'Çoklu poliçe sahibi - seyahat sigortası eklenebilir',
+        city: profile.sehir,
+        hashtags: profile.aiAnaliz,
+      });
+    }
+  }
+  
+  // Sort by probability descending and remove duplicates (keep highest probability per customer-product pair)
+  const uniqueMap = new Map<string, CrossSellRecommendation>();
+  for (const rec of recommendations) {
+    const key = `${rec.customerId}-${rec.suggestedProduct}`;
+    const existing = uniqueMap.get(key);
+    if (!existing || existing.probability < rec.probability) {
+      uniqueMap.set(key, rec);
+    }
+  }
+  
+  return Array.from(uniqueMap.values()).sort((a, b) => b.probability - a.probability);
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -897,11 +1117,7 @@ Sadece JSON array döndür.`;
     try {
       const { type } = req.body;
       
-      if (!openai) {
-        return res.status(503).json({ message: "AI özellikleri aktif değil. OPENAI_API_KEY gerekli." });
-      }
-
-      // Use customer profiles with hashtags for richer AI analysis
+      // Use customer profiles with hashtags for analysis
       const profiles = await storage.getAllCustomerProfilesForAiAnalysis();
       if (profiles.length === 0) {
         return res.status(400).json({ message: "Analiz için müşteri profili bulunamadı" });
@@ -909,6 +1125,36 @@ Sadece JSON array döndür.`;
 
       // Delete existing predictions for this type
       await storage.deleteCustomerPredictionsByType(type);
+
+      // For cross_sell, use rule-based engine instead of AI
+      if (type === "cross_sell") {
+        const recommendations = generateCrossSellRecommendations(profiles);
+        
+        const predictions: InsertAiCustomerPrediction[] = recommendations.map(rec => ({
+          analysisType: type,
+          customerId: rec.customerId,
+          profileId: rec.profileId,
+          customerName: rec.customerName,
+          currentProduct: rec.currentProduct,
+          suggestedProduct: rec.suggestedProduct,
+          probability: rec.probability,
+          reason: rec.reason,
+          city: rec.city,
+          hashtags: rec.hashtags,
+        }));
+
+        if (predictions.length > 0) {
+          await storage.createCustomerPredictions(predictions);
+        }
+
+        const savedPredictions = await storage.getCustomerPredictions({ analysisType: type });
+        return res.json({ success: true, count: savedPredictions.length, predictions: savedPredictions });
+      }
+
+      // For other types, use OpenAI
+      if (!openai) {
+        return res.status(503).json({ message: "AI özellikleri aktif değil. OPENAI_API_KEY gerekli." });
+      }
 
       // For large datasets, sample profiles intelligently
       const sampleSize = Math.min(200, profiles.length);
