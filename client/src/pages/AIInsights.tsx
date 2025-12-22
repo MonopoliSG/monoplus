@@ -13,7 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
-import { Sparkles, RefreshCw, TrendingUp, AlertTriangle, ShoppingCart, FileSpreadsheet, Users, ExternalLink, Search, Filter, Wand2, Trash2, Hash, Tag, Gift, Save } from "lucide-react";
+import { Sparkles, RefreshCw, TrendingUp, AlertTriangle, ShoppingCart, FileSpreadsheet, Users, ExternalLink, Search, Filter, Wand2, Trash2, Hash, Tag, Gift, Save, Phone, Mail, MapPin } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -1502,6 +1502,22 @@ function PredictionTable({
     return <Badge variant="outline">{probability}%</Badge>;
   };
 
+  const getPriorityBadge = (priority: string | undefined) => {
+    if (!priority) return null;
+    const p = priority.toLowerCase();
+    if (p === "high") return <Badge variant="destructive" className="text-xs">Yüksek</Badge>;
+    if (p === "medium") return <Badge variant="secondary" className="text-xs">Orta</Badge>;
+    return <Badge variant="outline" className="text-xs">Düşük</Badge>;
+  };
+
+  const getActionIcon = (action: string | undefined) => {
+    if (!action) return null;
+    const a = action.toLowerCase();
+    if (a === "call") return <Phone className="h-3 w-3 inline mr-1" />;
+    if (a === "email") return <Mail className="h-3 w-3 inline mr-1" />;
+    return <MapPin className="h-3 w-3 inline mr-1" />;
+  };
+
   return (
     <Card>
       <ScrollArea className="h-[500px]">
@@ -1510,10 +1526,12 @@ function PredictionTable({
             <TableRow>
               <TableHead>Müşteri</TableHead>
               <TableHead>Mevcut Ürün</TableHead>
+              {type === "crosssell" && <TableHead>Fırsat Tipi</TableHead>}
               {type === "crosssell" && <TableHead>Önerilen Ürün</TableHead>}
               <TableHead className="text-center">
-                {type === "churn" ? "İptal Olasılığı" : "Satış Olasılığı"}
+                {type === "churn" ? "İptal Olasılığı" : "Skor"}
               </TableHead>
+              {type === "crosssell" && <TableHead className="text-center">Öncelik</TableHead>}
               <TableHead>
                 {type === "churn" ? "Potansiyel Sebep" : "Satış Argümanı"}
               </TableHead>
@@ -1521,47 +1539,72 @@ function PredictionTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {predictions.map((prediction) => (
-              <TableRow key={prediction.id} data-testid={`row-prediction-${prediction.id}`}>
-                <TableCell className="font-medium">
-                  <div>
-                    <span>{prediction.customerName}</span>
-                    {prediction.city && (
-                      <span className="text-xs text-muted-foreground block">{prediction.city}</span>
-                    )}
-                  </div>
-                </TableCell>
-                <TableCell>{prediction.currentProduct || "-"}</TableCell>
-                {type === "crosssell" && (
-                  <TableCell>
-                    <Badge variant="outline">{prediction.suggestedProduct || "-"}</Badge>
+            {predictions.map((prediction) => {
+              const metadata = prediction.metadata as Record<string, unknown> | undefined;
+              const opportunityType = metadata?.opportunityType as string | undefined;
+              const priority = metadata?.priority as string | undefined;
+              const nextBestAction = metadata?.nextBestAction as string | undefined;
+              
+              return (
+                <TableRow key={prediction.id} data-testid={`row-prediction-${prediction.id}`}>
+                  <TableCell className="font-medium">
+                    <div>
+                      <span>{prediction.customerName}</span>
+                      {prediction.city && (
+                        <span className="text-xs text-muted-foreground block">{prediction.city}</span>
+                      )}
+                    </div>
                   </TableCell>
-                )}
-                <TableCell className="text-center">
-                  {getProbabilityBadge(prediction.probability)}
-                </TableCell>
-                <TableCell className="max-w-[400px]">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="text-sm text-muted-foreground line-clamp-3 cursor-help block">
-                        {prediction.reason || "-"}
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="max-w-[500px]">
-                      <p className="text-sm whitespace-pre-wrap">{prediction.reason}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TableCell>
-                <TableCell>
-                  <Link href={`/customer-profiles/${prediction.profileId || prediction.customerId}`}>
-                    <Button variant="ghost" size="sm" data-testid={`button-view-${prediction.id}`}>
-                      <ExternalLink className="h-4 w-4 mr-1" />
-                      Profil
-                    </Button>
-                  </Link>
-                </TableCell>
-              </TableRow>
-            ))}
+                  <TableCell>{prediction.currentProduct || "-"}</TableCell>
+                  {type === "crosssell" && (
+                    <TableCell>
+                      <span className="text-xs">{opportunityType || "-"}</span>
+                    </TableCell>
+                  )}
+                  {type === "crosssell" && (
+                    <TableCell>
+                      <Badge variant="outline">{prediction.suggestedProduct || "-"}</Badge>
+                    </TableCell>
+                  )}
+                  <TableCell className="text-center">
+                    {getProbabilityBadge(prediction.probability)}
+                  </TableCell>
+                  {type === "crosssell" && (
+                    <TableCell className="text-center">
+                      <div className="flex flex-col items-center gap-1">
+                        {getPriorityBadge(priority)}
+                        {nextBestAction && (
+                          <span className="text-xs text-muted-foreground">
+                            {getActionIcon(nextBestAction)}
+                            {nextBestAction === "Call" ? "Ara" : nextBestAction === "Email" ? "Mail" : "Ziyaret"}
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
+                  )}
+                  <TableCell className="max-w-[350px]">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="text-sm text-muted-foreground line-clamp-2 cursor-help block">
+                          {prediction.reason || "-"}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-[500px]">
+                        <p className="text-sm whitespace-pre-wrap">{prediction.reason}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TableCell>
+                  <TableCell>
+                    <Link href={`/customer-profiles/${prediction.profileId || prediction.customerId}`}>
+                      <Button variant="ghost" size="sm" data-testid={`button-view-${prediction.id}`}>
+                        <ExternalLink className="h-4 w-4 mr-1" />
+                        Profil
+                      </Button>
+                    </Link>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </ScrollArea>

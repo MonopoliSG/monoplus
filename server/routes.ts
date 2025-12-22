@@ -995,6 +995,12 @@ Sadece JSON array döndür.`;
           reason: String(p.reason || p.sebep || p.açıklama || ""),
           city: p.city || p.şehir || null,
           hashtags: p.hashtags || null,
+          metadata: {
+            opportunityType: p.opportunityType || p.fırsat_tipi || null,
+            priority: p.priority || null,
+            nextBestAction: p.nextBestAction || null,
+            customerType: p.customerType || null,
+          },
         })).filter((p: any) => p.customerId && p.customerName);
         console.log("Filtered predictions count:", predictions.length);
       } catch (parseError) {
@@ -2159,33 +2165,62 @@ Kurallar:
   }
 
   if (type === "cross_sell") {
-    return `Sen deneyimli bir sigorta uzmanısın. Aşağıdaki müşteri profillerine çapraz satış fırsatlarını analiz et.
+    return `Rol: Deneyimli sigorta çapraz satış (cross-sell) uzmanısın.
+Amaç: Çapraz satış fırsatlarını bul ve satış ekibinin arayacağı müşteri listesi üret.
 
-Müşteri Profilleri (Hashtag'ler dahil):
+Müşteri Profilleri (Hashtag'ler ve Ürün Bilgileri dahil):
 ${JSON.stringify(profileData, null, 2)}
 
-Her müşteri profili için çapraz satış önerisi yap. Hashtag'leri de dikkate al (örn: #yuksek_potansiyel, #premium, #aile).
+İŞ KURALLARI (mutlaka uygula):
+1. Bireysel / Kurumsal ayrımı: musteriTipi veya vergi no varlığına göre ayır, ayrı strateji üret
+2. Sahip olunan ürünleri (products) analiz et, eksik tamamlayıcı ürünleri tespit et
+
+ÇAPRAZ SATIŞ FIRSAT TİPLERİ (en az 8 tip):
+1. Kasko var → Trafik bizde değil
+2. Trafik var → Kasko bizde değil
+3. Konut var → DASK bizde değil
+4. DASK var → Konut bizde değil
+5. Araç var ama Ferdi Kaza yok
+6. Aile tipi müşteri → Sağlık/Hayat sigortası yok
+7. İşyeri/Kurumsal → Sorumluluk sigortası yok
+8. #sadik_musteri veya #yuksek_potansiyel → Premium ürün öner
+9. #yenileme_riski → Alternatif paket öner
+10. Ürün kombinasyon (bu ürünü alanlar genelde şunu da alıyor)
+
+SKORLAMA (0-100):
+- Zorunlu/eksik ürün (Kasko-Trafik, Konut-DASK): +40
+- #yenileme_riski veya #risk hashtag: +30
+- #sadik_musteri veya #yuksek_potansiyel: +20
+- #aile, #premium, #kurumsal gibi segment hashtag: +15
+- Ürün birlikteliği güçlü: +15
+Skoru nedenleriyle açıkla.
+
 Şu JSON formatında döndür:
 [
   {
     "profileId": "profil id",
     "customerName": "müşteri adı",
+    "customerType": "bireysel veya kurumsal",
     "currentProduct": "sahip olduğu ana ürünler",
     "suggestedProduct": "önerilen yeni ürün",
+    "opportunityType": "fırsat tipi (örn: Kasko var Trafik yok)",
     "probability": 85,
-    "reason": "Neden bu ürünü satın alabilir - hashtag'lere dayalı önerileri içersin",
+    "reason": "Skor açıklaması ve satış argümanı - hashtag'lere dayalı",
+    "priority": "High/Medium/Low",
+    "nextBestAction": "Call/Email/Visit",
     "city": "şehir",
     "hashtags": "ilgili hashtag'ler"
   }
 ]
 
 Kurallar:
-- probability 0-100 arası satış başarı olasılığı olmalı
-- Hashtag'ler önerilerinizi desteklemeli (örn: #aile olan müşteriye çocuk sağlık sigortası öner)
-- suggestedProduct: Kasko, Trafik, Sağlık, Konut, DASK, Ferdi Kaza, Seyahat, İşyeri gibi ürünler
-- En yüksek satış potansiyeli olan profillerden başla
-- reason alanına satış argümanını açıkla
+- probability 0-100 arası olmalı, yukarıdaki skorlama kurallarına göre hesapla
+- opportunityType alanına fırsat tipini yaz (örn: "Kasko var Trafik yok")
+- priority: probability >= 70 ise High, 50-69 ise Medium, <50 ise Low
+- nextBestAction: High öncelik = Call, Medium = Email, Low = Visit
+- suggestedProduct: Kasko, Trafik, Sağlık, Konut, DASK, Ferdi Kaza, Seyahat, İşyeri, Sorumluluk, Hayat
 - EN AZ 50 profil için öneri yap, mümkünse tüm profiller için
+- Bireysel ve Kurumsal müşterilere farklı stratejiler uygula
 - Sadece JSON array döndür, başka metin ekleme`;
   }
 
