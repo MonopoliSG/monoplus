@@ -488,9 +488,9 @@ export default function Customers() {
       <div className="flex-1 p-6 space-y-4 overflow-auto">
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div>
-            <h1 className="text-2xl font-semibold" data-testid="text-page-title">Müşteriler</h1>
+            <h1 className="text-2xl font-semibold" data-testid="text-page-title">Poliçeler</h1>
             <p className="text-muted-foreground">
-              {totalCustomers} müşteri {totalPages > 1 && `(Sayfa ${filters.page}/${totalPages})`}
+              Toplam {totalCustomers} Poliçe {totalPages > 1 && `(Sayfa ${filters.page}/${totalPages})`}
             </p>
             {hasActiveFilters && (
               <div className="flex items-center gap-2 mt-2 flex-wrap">
