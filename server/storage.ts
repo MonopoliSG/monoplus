@@ -132,6 +132,12 @@ export interface IStorage {
   syncCustomerProfiles(): Promise<{ created: number; updated: number }>;
   updateProfileAiAnalysis(profileId: string, aiAnaliz: string): Promise<void>;
   getAllCustomerProfilesForAiAnalysis(): Promise<CustomerProfile[]>;
+  getCustomersCancellationData(): Promise<Array<{
+    hesapKodu: string;
+    cancelledCount: number;
+    totalPolicies: number;
+    cancellationReasons: string[];
+  }>>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1026,6 +1032,32 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(customerProfiles)
       .orderBy(customerProfiles.musteriIsmi);
+  }
+
+  async getCustomersCancellationData(): Promise<Array<{
+    hesapKodu: string;
+    cancelledCount: number;
+    totalPolicies: number;
+    cancellationReasons: string[];
+  }>> {
+    const result = await db.execute(sql`
+      SELECT 
+        hesap_kodu,
+        COUNT(*) FILTER (WHERE iptal_sebebi IS NOT NULL AND iptal_sebebi != '') as cancelled_count,
+        COUNT(*) as total_policies,
+        ARRAY_AGG(DISTINCT iptal_sebebi) FILTER (WHERE iptal_sebebi IS NOT NULL AND iptal_sebebi != '') as cancellation_reasons
+      FROM customers
+      WHERE hesap_kodu IS NOT NULL AND hesap_kodu != ''
+      GROUP BY hesap_kodu
+      HAVING COUNT(*) FILTER (WHERE iptal_sebebi IS NOT NULL AND iptal_sebebi != '') > 0
+    `);
+    
+    return (result.rows as any[]).map(row => ({
+      hesapKodu: row.hesap_kodu,
+      cancelledCount: parseInt(row.cancelled_count) || 0,
+      totalPolicies: parseInt(row.total_policies) || 1, // Default to 1 to avoid division by zero
+      cancellationReasons: Array.isArray(row.cancellation_reasons) ? row.cancellation_reasons.filter((r: any) => r != null) : [],
+    }));
   }
 }
 

@@ -302,6 +302,115 @@ function generateCrossSellRecommendations(profiles: any[]): CrossSellRecommendat
   return Array.from(uniqueMap.values()).sort((a, b) => b.probability - a.probability);
 }
 
+// Rule-based churn prediction engine
+interface ChurnPrediction {
+  customerId: string;
+  profileId: string;
+  customerName: string;
+  currentProduct: string;
+  suggestedProduct: string;
+  probability: number;
+  reason: string;
+  city: string | null;
+  hashtags: string | null;
+}
+
+async function generateChurnPredictions(profiles: any[]): Promise<ChurnPrediction[]> {
+  const predictions: ChurnPrediction[] = [];
+  const profilesToUpdate: { id: string; aiAnaliz: string }[] = [];
+  
+  // Get cancellation data from storage
+  const cancellationData = await storage.getCustomersCancellationData();
+  const cancellationMap = new Map(
+    cancellationData.map(c => [c.hesapKodu, c])
+  );
+  
+  for (const profile of profiles) {
+    const hesapKodu = profile.hesapKodu;
+    if (!hesapKodu) continue;
+    
+    const cancellation = cancellationMap.get(hesapKodu);
+    if (!cancellation) continue;
+    
+    const { cancelledCount, totalPolicies, cancellationReasons } = cancellation;
+    
+    // Calculate churn risk probability based on rules
+    let probability = 0;
+    const reasons: string[] = [];
+    
+    // Rule 1: Has at least one cancelled policy
+    if (cancelledCount >= 1) {
+      probability += 40;
+      reasons.push(`${cancelledCount} poliçe iptal edilmiş`);
+    }
+    
+    // Rule 2: High cancellation ratio (more than 30% of policies cancelled)
+    // Guard against division by zero
+    if (totalPolicies > 0) {
+      const cancellationRatio = cancelledCount / totalPolicies;
+      if (cancellationRatio > 0.5) {
+        probability += 30;
+        reasons.push(`Yüksek iptal oranı (%${Math.round(cancellationRatio * 100)})`);
+      } else if (cancellationRatio > 0.3) {
+        probability += 20;
+        reasons.push(`Orta düzey iptal oranı (%${Math.round(cancellationRatio * 100)})`);
+      }
+    }
+    
+    // Rule 3: Multiple cancellations indicate higher risk
+    if (cancelledCount >= 3) {
+      probability += 20;
+      reasons.push('Çoklu iptal geçmişi');
+    } else if (cancelledCount >= 2) {
+      probability += 10;
+      reasons.push('Birden fazla iptal');
+    }
+    
+    // Cap probability at 95
+    probability = Math.min(probability, 95);
+    
+    // Only include if there's meaningful risk
+    if (probability >= 30) {
+      const reasonsText = reasons.join(', ');
+      const cancellationReasonsList = cancellationReasons.filter(r => r).join(', ');
+      
+      // Add #yenileme_riski hashtag to profile if not already present
+      const currentHashtags = profile.aiAnaliz || '';
+      if (!currentHashtags.includes('#yenileme_riski')) {
+        const updatedHashtags = currentHashtags ? `${currentHashtags} #yenileme_riski` : '#yenileme_riski';
+        profilesToUpdate.push({ id: profile.id, aiAnaliz: updatedHashtags });
+      }
+      
+      // Include updated hashtags in prediction
+      const updatedHashtagsForPrediction = currentHashtags.includes('#yenileme_riski') 
+        ? currentHashtags 
+        : (currentHashtags ? `${currentHashtags} #yenileme_riski` : '#yenileme_riski');
+      
+      predictions.push({
+        customerId: hesapKodu,
+        profileId: profile.id,
+        customerName: profile.musteriIsmi || 'İsimsiz Müşteri',
+        currentProduct: profile.sahipOlunanUrunler?.split(',')[0]?.trim() || 'Mevcut Poliçe',
+        suggestedProduct: 'Yenileme Riski - Müşteri Kazanımı Gerekli',
+        probability,
+        reason: cancellationReasonsList ? `${reasonsText}. İptal sebepleri: ${cancellationReasonsList}` : reasonsText,
+        city: profile.sehir || null,
+        hashtags: updatedHashtagsForPrediction,
+      });
+    }
+  }
+  
+  // Update profiles with #yenileme_riski hashtag
+  for (const update of profilesToUpdate) {
+    await storage.updateProfileAiAnalysis(update.id, update.aiAnaliz);
+  }
+  
+  console.log(`Churn prediction: Updated ${profilesToUpdate.length} profiles with #yenileme_riski hashtag`);
+  
+  // Sort by probability descending
+  return predictions.sort((a, b) => b.probability - a.probability);
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -1141,6 +1250,31 @@ Sadece JSON array döndür.`;
           reason: rec.reason,
           city: rec.city,
           hashtags: rec.hashtags,
+        }));
+
+        if (predictions.length > 0) {
+          await storage.createCustomerPredictions(predictions);
+        }
+
+        const savedPredictions = await storage.getCustomerPredictions({ analysisType: type });
+        return res.json({ success: true, count: savedPredictions.length, predictions: savedPredictions });
+      }
+
+      // For churn_prediction, use rule-based engine
+      if (type === "churn_prediction") {
+        const churnResults = await generateChurnPredictions(profiles);
+        
+        const predictions: InsertAiCustomerPrediction[] = churnResults.map(pred => ({
+          analysisType: type,
+          customerId: pred.customerId,
+          profileId: pred.profileId,
+          customerName: pred.customerName,
+          currentProduct: pred.currentProduct,
+          suggestedProduct: pred.suggestedProduct,
+          probability: pred.probability,
+          reason: pred.reason,
+          city: pred.city,
+          hashtags: pred.hashtags,
         }));
 
         if (predictions.length > 0) {
