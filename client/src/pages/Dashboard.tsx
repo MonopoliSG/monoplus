@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Users, Target, Calendar, AlertTriangle, ArrowRight } from "lucide-react";
+import { Users, PieChart, Target, Calendar, AlertTriangle, ArrowRight } from "lucide-react";
 import { Link } from "wouter";
 import { format, differenceInDays, parseISO } from "date-fns";
 import { tr } from "date-fns/locale";
@@ -11,6 +11,7 @@ import { tr } from "date-fns/locale";
 interface DashboardStats {
   customerCount: number;
   renewalCount: number;
+  segmentCount: number;
   campaignCount: number;
   renewals: any[];
 }
@@ -44,8 +45,8 @@ export default function Dashboard() {
       <div className="p-6 space-y-6">
         <div className="animate-pulse space-y-4">
           <div className="h-8 bg-muted rounded w-48" />
-          <div className="grid gap-4 md:grid-cols-3">
-            {[1, 2, 3].map((i) => (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            {[1, 2, 3, 4].map((i) => (
               <div key={i} className="h-24 bg-muted rounded" />
             ))}
           </div>
@@ -65,7 +66,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
@@ -90,6 +91,17 @@ export default function Dashboard() {
             <div className="text-2xl font-bold text-orange-600" data-testid="text-renewal-count">
               {stats?.renewalCount || 0}
             </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <PieChart className="h-4 w-4" />
+              Segment Sayısı
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats?.segmentCount || 0}</div>
           </CardContent>
         </Card>
         <Card>
@@ -173,6 +185,12 @@ export default function Dashboard() {
               <Link href="/import">
                 <Users className="h-4 w-4 mr-2" />
                 CSV İçe Aktar
+              </Link>
+            </Button>
+            <Button variant="outline" className="justify-start" asChild>
+              <Link href="/segments">
+                <PieChart className="h-4 w-4 mr-2" />
+                Segmentleri Görüntüle
               </Link>
             </Button>
             <Button variant="outline" className="justify-start" asChild>

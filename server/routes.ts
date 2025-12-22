@@ -197,119 +197,6 @@ export async function registerRoutes(
     }
   });
 
-  // Excel export endpoint for filtered customers
-  app.get("/api/customers/export", isAuthenticated, async (req, res) => {
-    try {
-      const search = req.query.search as string;
-      const city = req.query.city as string;
-      const branch = req.query.branch as string;
-      const segment = req.query.segment as string;
-      const renewalDays = req.query.renewalDays ? parseInt(req.query.renewalDays as string) : undefined;
-      const aiPredictionType = req.query.aiPredictionType as string;
-      const aiAnalysisId = req.query.aiAnalysisId as string;
-      const customerType = req.query.customerType as string;
-      const dateType = req.query.dateType as string;
-      const dateFrom = req.query.dateFrom as string;
-      const dateTo = req.query.dateTo as string;
-      const hasBranch = req.query.hasBranch as string;
-      const notHasBranch = req.query.notHasBranch as string;
-      const minAge = req.query.minAge ? parseInt(req.query.minAge as string) : undefined;
-      const hasBranch2 = req.query.hasBranch2 as string;
-      const notHasBranch2 = req.query.notHasBranch2 as string;
-      const policyCountMin = req.query.policyCountMin ? parseInt(req.query.policyCountMin as string) : undefined;
-      const policyCountMax = req.query.policyCountMax ? parseInt(req.query.policyCountMax as string) : undefined;
-      const renewalProduct = req.query.renewalProduct as string;
-      const vehicleCountMin = req.query.vehicleCountMin ? parseInt(req.query.vehicleCountMin as string) : undefined;
-      const vehicleAgeMax = req.query.vehicleAgeMax ? parseInt(req.query.vehicleAgeMax as string) : undefined;
-
-      const result = await storage.getCustomersPaginated({
-        page: 1,
-        limit: 100000,
-        search,
-        city,
-        branch,
-        segment,
-        renewalDays,
-        aiPredictionType,
-        aiAnalysisId,
-        customerType,
-        dateType,
-        dateFrom,
-        dateTo,
-        hasBranch,
-        notHasBranch,
-        minAge,
-        hasBranch2,
-        notHasBranch2,
-        policyCountMin,
-        policyCountMax,
-        renewalProduct,
-        vehicleCountMin,
-        vehicleAgeMax,
-      });
-
-      const workbook = new ExcelJS.Workbook();
-      const worksheet = workbook.addWorksheet("Müşteriler");
-
-      worksheet.columns = [
-        { header: "TC Kimlik No", key: "tcKimlikNo", width: 15 },
-        { header: "Müşteri Adı", key: "musteriIsmi", width: 25 },
-        { header: "Şehir", key: "sehir", width: 15 },
-        { header: "Telefon", key: "telefon1", width: 15 },
-        { header: "E-posta", key: "ePosta", width: 25 },
-        { header: "Branş", key: "anaBrans", width: 20 },
-        { header: "Alt Branş", key: "bransAdi", width: 25 },
-        { header: "Bitiş Tarihi", key: "bitisTarihi", width: 12 },
-        { header: "Brüt Prim", key: "brut", width: 12 },
-        { header: "Net Prim", key: "net", width: 12 },
-        { header: "Müşteri Tipi", key: "musteriTipi", width: 15 },
-        { header: "Plaka", key: "aracPlakasi", width: 12 },
-        { header: "Marka", key: "aracMarkasi", width: 15 },
-        { header: "Model", key: "aracModeli", width: 15 },
-        { header: "Model Yılı", key: "modelYili", width: 10 },
-        { header: "Poliçe No", key: "policeNumarasi", width: 20 },
-      ];
-
-      worksheet.getRow(1).font = { bold: true };
-      worksheet.getRow(1).fill = {
-        type: "pattern",
-        pattern: "solid",
-        fgColor: { argb: "FF4472C4" },
-      };
-      worksheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
-
-      for (const customer of result.customers) {
-        worksheet.addRow({
-          tcKimlikNo: customer.tcKimlikNo,
-          musteriIsmi: customer.musteriIsmi,
-          sehir: customer.sehir,
-          telefon1: customer.telefon1,
-          ePosta: customer.ePosta,
-          anaBrans: customer.anaBrans,
-          bransAdi: customer.bransAdi,
-          bitisTarihi: customer.bitisTarihi,
-          brut: customer.brut,
-          net: customer.net,
-          musteriTipi: customer.musteriTipi,
-          aracPlakasi: customer.aracPlakasi,
-          aracMarkasi: customer.aracMarkasi,
-          aracModeli: customer.aracModeli,
-          modelYili: customer.modelYili,
-          policeNumarasi: customer.policeNumarasi,
-        });
-      }
-
-      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-      res.setHeader("Content-Disposition", `attachment; filename=musteriler_${new Date().toISOString().split("T")[0]}.xlsx`);
-
-      await workbook.xlsx.write(res);
-      res.end();
-    } catch (error) {
-      console.error("Error exporting customers:", error);
-      res.status(500).json({ message: "Excel dosyası oluşturulamadı" });
-    }
-  });
-
   app.get("/api/customers/:id", isAuthenticated, async (req, res) => {
     try {
       const customer = await storage.getCustomer(req.params.id);
@@ -911,164 +798,103 @@ Sadece JSON array döndür.`;
     }
   });
 
-  // Run customer-specific AI analysis (incremental - only analyzes new/unanalyzed customers)
+  // Run customer-specific AI analysis
   app.post("/api/ai/analyze-customers", isAuthenticated, async (req, res) => {
     try {
-      const { type, forceReanalyze } = req.body;
+      const { type } = req.body;
       
       if (!openai) {
         return res.status(503).json({ message: "AI özellikleri aktif değil. OPENAI_API_KEY gerekli." });
       }
 
       // Use customer profiles with hashtags for richer AI analysis
-      const allProfiles = await storage.getAllCustomerProfilesForAiAnalysis();
-      if (allProfiles.length === 0) {
+      const profiles = await storage.getAllCustomerProfilesForAiAnalysis();
+      if (profiles.length === 0) {
         return res.status(400).json({ message: "Analiz için müşteri profili bulunamadı" });
       }
 
-      // Get existing predictions to find already analyzed customers
-      const existingPredictions = await storage.getCustomerPredictions({ analysisType: type });
-      
-      // Create a map of profileId -> prediction (with createdAt for comparison)
-      const predictionMap = new Map<string, typeof existingPredictions[0]>();
-      existingPredictions.forEach(p => {
-        const key = p.profileId || p.customerId;
-        if (key) predictionMap.set(key, p);
+      // Delete existing predictions for this type
+      await storage.deleteCustomerPredictionsByType(type);
+
+      // For large datasets, sample profiles intelligently
+      const sampleSize = Math.min(200, profiles.length);
+      const sampledProfiles = profiles.slice(0, sampleSize);
+
+      const prompt = getCustomerProfilePredictionPrompt(type, sampledProfiles);
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [{ role: "user", content: prompt }],
+        max_completion_tokens: 16000,
+        temperature: 0.3,
       });
-      
-      // Filter profiles that need analysis:
-      // 1. No existing prediction OR
-      // 2. Customer was updated after the prediction was created (new data added)
-      let profilesToAnalyze = forceReanalyze 
-        ? allProfiles 
-        : allProfiles.filter(p => {
-            const existingPred = predictionMap.get(p.id);
-            if (!existingPred) return true; // No prediction - needs analysis
-            
-            // Check if customer was updated after prediction was created
-            const profileUpdated = p.updatedAt ? new Date(p.updatedAt) : null;
-            const predCreated = existingPred.createdAt ? new Date(existingPred.createdAt) : null;
-            
-            if (profileUpdated && predCreated && profileUpdated > predCreated) {
-              console.log(`Profile ${p.id} updated after prediction, will re-analyze`);
-              return true; // Customer updated since prediction - needs re-analysis
-            }
-            
-            return false; // Already analyzed and not updated
-          });
-      
-      // Delete old predictions for profiles that will be re-analyzed (updated customers)
-      const profilesToReanalyzeIds = profilesToAnalyze
-        .filter(p => predictionMap.has(p.id))
-        .map(p => p.id);
-      
-      if (profilesToReanalyzeIds.length > 0 && !forceReanalyze) {
-        console.log(`Deleting ${profilesToReanalyzeIds.length} old predictions for updated customers`);
-        await storage.deleteCustomerPredictionsByProfileIds(type, profilesToReanalyzeIds);
-      }
-      
-      console.log(`Total profiles: ${allProfiles.length}, Already analyzed: ${predictionMap.size}, To analyze: ${profilesToAnalyze.length}`);
-      
-      // If all profiles are already analyzed and up-to-date, return existing predictions
-      if (profilesToAnalyze.length === 0) {
-        return res.json({ 
-          success: true, 
-          count: existingPredictions.length, 
-          predictions: existingPredictions,
-          message: "Tüm müşteriler zaten analiz edilmiş. Yeni veya güncellenmiş müşteri yok."
-        });
-      }
 
-      // If forceReanalyze, delete existing predictions first
-      if (forceReanalyze) {
-        await storage.deleteCustomerPredictionsByType(type);
-      }
-
-      // Process in batches to analyze ALL customers
-      const batchSize = 50; // Analyze 50 profiles per API call
-      const allNewPredictions: InsertAiCustomerPrediction[] = [];
-      const totalBatches = Math.ceil(profilesToAnalyze.length / batchSize);
+      let content = response.choices[0]?.message?.content || "[]";
       
-      console.log(`Processing ${totalBatches} batches of ${batchSize} profiles each`);
+      // Remove markdown code blocks if present
+      content = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+      
+      console.log("AI Response content length:", content.length);
+      console.log("AI Response first 500 chars:", content.substring(0, 500));
+      let predictions: InsertAiCustomerPrediction[] = [];
 
-      for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
-        const start = batchIndex * batchSize;
-        const end = Math.min(start + batchSize, profilesToAnalyze.length);
-        const batchProfiles = profilesToAnalyze.slice(start, end);
+      try {
+        // Try multiple parsing strategies
+        let rawPredictions: any[] = [];
         
-        console.log(`Processing batch ${batchIndex + 1}/${totalBatches} (profiles ${start + 1}-${end})`);
-        
+        // Strategy 1: Direct JSON parse
         try {
-          const prompt = getCustomerProfilePredictionPrompt(type, batchProfiles);
-          
-          const response = await openai.chat.completions.create({
-            model: "gpt-4o",
-            messages: [{ role: "user", content: prompt }],
-            max_completion_tokens: 16384,
-            temperature: 0.3,
-          });
-
-          let content = response.choices[0]?.message?.content || "[]";
-          content = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-          
-          console.log(`Batch ${batchIndex + 1} AI Response length: ${content.length}`);
-          
-          let rawPredictions: any[] = [];
-          try {
-            const parsed = JSON.parse(content);
-            rawPredictions = Array.isArray(parsed) ? parsed : (parsed.predictions || parsed.data || []);
-          } catch {
-            const startIdx = content.indexOf('[');
-            const endIdx = content.lastIndexOf(']');
-            if (startIdx !== -1 && endIdx > startIdx) {
-              try {
-                rawPredictions = JSON.parse(content.substring(startIdx, endIdx + 1));
-              } catch { /* ignore */ }
+          const parsed = JSON.parse(content);
+          rawPredictions = Array.isArray(parsed) ? parsed : (parsed.predictions || parsed.data || []);
+          console.log("Strategy 1 succeeded, count:", rawPredictions.length);
+        } catch (e1) {
+          console.log("Strategy 1 failed:", (e1 as Error).message);
+          // Strategy 2: Find any JSON-like content between first [ and last ]
+          const startIdx = content.indexOf('[');
+          const endIdx = content.lastIndexOf(']');
+          console.log("Strategy 2: startIdx=", startIdx, "endIdx=", endIdx);
+          if (startIdx !== -1 && endIdx > startIdx) {
+            const jsonStr = content.substring(startIdx, endIdx + 1);
+            console.log("JSON substring length:", jsonStr.length);
+            try {
+              rawPredictions = JSON.parse(jsonStr);
+              console.log("Strategy 2 succeeded, count:", rawPredictions.length);
+            } catch (e2) {
+              console.log("Strategy 2 failed:", (e2 as Error).message);
+              console.log("JSON substring first 200 chars:", jsonStr.substring(0, 200));
             }
           }
-          
-          console.log(`Batch ${batchIndex + 1} parsed ${rawPredictions.length} predictions`);
-          
-          const batchPredictions: InsertAiCustomerPrediction[] = rawPredictions.map((p: any) => ({
-            analysisType: type,
-            customerId: String(p.customerId || p.profileId || p.id || ""),
-            profileId: String(p.profileId || p.customerId || p.id || ""),
-            customerName: String(p.customerName || p.name || p.müşteri_adı || ""),
-            currentProduct: String(p.currentProduct || p.product || p.mevcut_ürün || ""),
-            suggestedProduct: p.suggestedProduct || p.suggested_product || p.önerilen_ürün || null,
-            probability: Math.min(100, Math.max(0, parseInt(p.probability || p.olasılık || p.risk) || 50)),
-            reason: String(p.reason || p.sebep || p.açıklama || ""),
-            city: p.city || p.şehir || null,
-            hashtags: p.hashtags || null,
-            metadata: {
-              opportunityType: p.opportunityType || p.fırsat_tipi || null,
-              priority: p.priority || null,
-              nextBestAction: p.nextBestAction || null,
-              customerType: p.customerType || null,
-            },
-          })).filter((p: any) => p.customerId && p.customerName);
-          
-          allNewPredictions.push(...batchPredictions);
-          
-          // Save predictions after each batch
-          if (batchPredictions.length > 0) {
-            await storage.createCustomerPredictions(batchPredictions);
-          }
-        } catch (batchError) {
-          console.error(`Error in batch ${batchIndex + 1}:`, batchError);
-          // Continue with next batch
         }
+        
+        console.log("Parsed predictions count:", rawPredictions.length);
+        if (rawPredictions.length > 0) {
+          console.log("First prediction sample:", JSON.stringify(rawPredictions[0]));
+        }
+        
+        predictions = rawPredictions.map((p: any) => ({
+          analysisType: type,
+          customerId: String(p.customerId || p.profileId || p.id || ""),
+          profileId: String(p.profileId || p.customerId || p.id || ""),
+          customerName: String(p.customerName || p.name || p.müşteri_adı || ""),
+          currentProduct: String(p.currentProduct || p.product || p.mevcut_ürün || ""),
+          suggestedProduct: p.suggestedProduct || p.suggested_product || p.önerilen_ürün || null,
+          probability: Math.min(100, Math.max(0, parseInt(p.probability || p.olasılık || p.risk) || 50)),
+          reason: String(p.reason || p.sebep || p.açıklama || ""),
+          city: p.city || p.şehir || null,
+          hashtags: p.hashtags || null,
+        })).filter((p: any) => p.customerId && p.customerName);
+        console.log("Filtered predictions count:", predictions.length);
+      } catch (parseError) {
+        console.error("Error parsing AI response:", parseError);
+        console.log("Raw AI response:", content.substring(0, 1000));
       }
-      
-      console.log(`Total new predictions: ${allNewPredictions.length}`);
+
+      if (predictions.length > 0) {
+        await storage.createCustomerPredictions(predictions);
+      }
 
       const savedPredictions = await storage.getCustomerPredictions({ analysisType: type });
-      res.json({ 
-        success: true, 
-        count: savedPredictions.length, 
-        newCount: allNewPredictions.length,
-        predictions: savedPredictions 
-      });
+      res.json({ success: true, count: savedPredictions.length, predictions: savedPredictions });
     } catch (error) {
       console.error("Error analyzing customers:", error);
       res.status(500).json({ message: "Müşteri analizi başarısız oldu" });
@@ -1138,244 +964,6 @@ Sadece JSON array döndür.`;
     } catch (error) {
       console.error("Error exporting predictions:", error);
       res.status(500).json({ message: "Export başarısız oldu" });
-    }
-  });
-
-  // Cancellation Analysis - KPI Dashboard based on policeKayitTipi
-  // Following Python script logic: "satış" = first normal record, "zeyil" = subsequent normal, "iptal" = cancellation
-  app.get("/api/ai/cancellation-analysis", isAuthenticated, async (req, res) => {
-    try {
-      const customers = await storage.getAllCustomers();
-      
-      if (customers.length === 0) {
-        return res.json({
-          generalStats: { toplamPolice: 0, iptalAdedi: 0, iptalOrani: 0 },
-          cancelReasons: [],
-          monthlyTrend: [],
-          branchBreakdown: [],
-          companyBreakdown: [],
-          lifetimeDistribution: [],
-          riskyProducts: [],
-        });
-      }
-
-      // Normalize policy type: "iptal" = iptal, anything else = normal (satış/zeyil)
-      // Python logic: s.str.contains("iptal") -> "iptal", else -> "normal"
-      const normalizeTip = (tip: string | null | undefined): string => {
-        if (!tip) return "normal";
-        const lower = tip.toLowerCase().trim();
-        return lower.includes("iptal") ? "iptal" : "normal";
-      };
-
-      // Group by policy number - following Python script's logic:
-      // sale_date = earliest NORMAL record (first sale)
-      // cancel_date = earliest IPTAL record (first cancellation)
-      const policyMap = new Map<string, {
-        saleDate: Date | null;
-        cancelDate: Date | null;
-        branch: string | null;
-        company: string | null;
-        cancelReason: string | null;
-        city: string | null;
-        customer: string | null;
-        normalRecords: { date: Date; record: typeof customers[0] }[];
-        cancelRecords: { date: Date; record: typeof customers[0] }[];
-      }>();
-
-      for (const c of customers) {
-        const policeNo = c.policeNumarasi;
-        if (!policeNo) continue;
-
-        const tipNorm = normalizeTip(c.policeKayitTipi);
-        const tanzimDate = c.tanzimTarihi ? new Date(c.tanzimTarihi) : null;
-        if (!tanzimDate || isNaN(tanzimDate.getTime())) continue;
-
-        if (!policyMap.has(policeNo)) {
-          policyMap.set(policeNo, {
-            saleDate: null,
-            cancelDate: null,
-            branch: null,
-            company: null,
-            cancelReason: null,
-            city: null,
-            customer: null,
-            normalRecords: [],
-            cancelRecords: [],
-          });
-        }
-
-        const policy = policyMap.get(policeNo)!;
-
-        if (tipNorm === "normal") {
-          policy.normalRecords.push({ date: tanzimDate, record: c });
-        } else if (tipNorm === "iptal") {
-          policy.cancelRecords.push({ date: tanzimDate, record: c });
-        }
-      }
-
-      // Process each policy to get sale_date (earliest normal) and cancel_date (earliest iptal)
-      policyMap.forEach((policy) => {
-        // sale_date = min tanzim_tarihi where tip is normal (first sale)
-        if (policy.normalRecords.length > 0) {
-          policy.normalRecords.sort((a: { date: Date }, b: { date: Date }) => a.date.getTime() - b.date.getTime());
-          const firstSale = policy.normalRecords[0];
-          policy.saleDate = firstSale.date;
-          policy.branch = firstSale.record.anaBrans || null;
-          policy.company = firstSale.record.sigortaSirketiAdi || null;
-          policy.city = firstSale.record.sehir || null;
-          policy.customer = firstSale.record.musteriIsmi || null;
-        }
-        
-        // cancel_date = min tanzim_tarihi where tip is iptal (first cancellation)
-        if (policy.cancelRecords.length > 0) {
-          policy.cancelRecords.sort((a: { date: Date }, b: { date: Date }) => a.date.getTime() - b.date.getTime());
-          const firstCancel = policy.cancelRecords[0];
-          policy.cancelDate = firstCancel.date;
-          policy.cancelReason = firstCancel.record.iptalSebebi || null;
-        }
-      });
-
-      // Calculate KPIs
-      const policies = Array.from(policyMap.entries());
-      const totalPolicies = policies.length;
-      const cancelledPolicies = policies.filter(([, p]) => p.cancelDate !== null);
-      const cancelledCount = cancelledPolicies.length;
-      const cancelRate = totalPolicies > 0 ? (cancelledCount / totalPolicies) * 100 : 0;
-
-      // A) General Stats
-      const generalStats = {
-        toplamPolice: totalPolicies,
-        iptalAdedi: cancelledCount,
-        iptalOrani: Math.round(cancelRate * 100) / 100,
-      };
-
-      // B) Cancel Reason Distribution
-      const reasonCounts = new Map<string, number>();
-      for (const [, p] of cancelledPolicies) {
-        const reason = p.cancelReason || "Bilinmiyor";
-        reasonCounts.set(reason, (reasonCounts.get(reason) || 0) + 1);
-      }
-      const cancelReasons = Array.from(reasonCounts.entries())
-        .map(([reason, count]) => ({
-          reason,
-          count,
-          percentage: cancelledCount > 0 ? Math.round((count / cancelledCount) * 10000) / 100 : 0,
-        }))
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 15);
-
-      // C) Monthly Trend (last 12 months by cancel date)
-      const monthCounts = new Map<string, number>();
-      for (const [, p] of cancelledPolicies) {
-        if (p.cancelDate) {
-          const month = p.cancelDate.toISOString().slice(0, 7); // YYYY-MM
-          monthCounts.set(month, (monthCounts.get(month) || 0) + 1);
-        }
-      }
-      const monthlyTrend = Array.from(monthCounts.entries())
-        .map(([month, count]) => ({ month, count }))
-        .sort((a, b) => a.month.localeCompare(b.month))
-        .slice(-12);
-
-      // D) Branch Breakdown
-      const branchStats = new Map<string, { total: number; cancelled: number }>();
-      for (const [, p] of policies) {
-        const branch = p.branch || "Bilinmiyor";
-        if (!branchStats.has(branch)) {
-          branchStats.set(branch, { total: 0, cancelled: 0 });
-        }
-        const stat = branchStats.get(branch)!;
-        stat.total++;
-        if (p.cancelDate) stat.cancelled++;
-      }
-      const branchBreakdown = Array.from(branchStats.entries())
-        .map(([branch, stats]) => ({
-          branch,
-          total: stats.total,
-          cancelled: stats.cancelled,
-          cancelRate: stats.total > 0 ? Math.round((stats.cancelled / stats.total) * 10000) / 100 : 0,
-        }))
-        .filter(b => b.total >= 10)
-        .sort((a, b) => b.cancelRate - a.cancelRate);
-
-      // Company Breakdown
-      const companyStats = new Map<string, { total: number; cancelled: number }>();
-      for (const [, p] of policies) {
-        const company = p.company || "Bilinmiyor";
-        if (!companyStats.has(company)) {
-          companyStats.set(company, { total: 0, cancelled: 0 });
-        }
-        const stat = companyStats.get(company)!;
-        stat.total++;
-        if (p.cancelDate) stat.cancelled++;
-      }
-      const companyBreakdown = Array.from(companyStats.entries())
-        .map(([company, stats]) => ({
-          company,
-          total: stats.total,
-          cancelled: stats.cancelled,
-          cancelRate: stats.total > 0 ? Math.round((stats.cancelled / stats.total) * 10000) / 100 : 0,
-        }))
-        .filter(c => c.total >= 10)
-        .sort((a, b) => b.cancelRate - a.cancelRate);
-
-      // E) Policy Lifetime Distribution (days between sale and cancel)
-      const lifetimeBuckets = [
-        { label: "0 gün", min: 0, max: 0, count: 0 },
-        { label: "1-7 gün", min: 1, max: 7, count: 0 },
-        { label: "8-15 gün", min: 8, max: 15, count: 0 },
-        { label: "16-30 gün", min: 16, max: 30, count: 0 },
-        { label: "31-60 gün", min: 31, max: 60, count: 0 },
-        { label: "61-90 gün", min: 61, max: 90, count: 0 },
-        { label: "91-180 gün", min: 91, max: 180, count: 0 },
-        { label: "181-365 gün", min: 181, max: 365, count: 0 },
-        { label: "365+ gün", min: 366, max: 999999, count: 0 },
-      ];
-
-      for (const [, p] of cancelledPolicies) {
-        if (p.saleDate && p.cancelDate) {
-          const days = Math.floor((p.cancelDate.getTime() - p.saleDate.getTime()) / (1000 * 60 * 60 * 24));
-          if (days >= 0) {
-            for (const bucket of lifetimeBuckets) {
-              if (days >= bucket.min && days <= bucket.max) {
-                bucket.count++;
-                break;
-              }
-            }
-          }
-        }
-      }
-
-      const totalLifetime = lifetimeBuckets.reduce((sum, b) => sum + b.count, 0);
-      const lifetimeDistribution = lifetimeBuckets.map(b => ({
-        label: b.label,
-        count: b.count,
-        percentage: totalLifetime > 0 ? Math.round((b.count / totalLifetime) * 10000) / 100 : 0,
-      }));
-
-      // F) Risky Products (high cancel rate products)
-      const riskyProducts = branchBreakdown
-        .filter(b => b.total >= 20)
-        .slice(0, 10)
-        .map(b => ({
-          product: b.branch,
-          totalPolicies: b.total,
-          cancelledPolicies: b.cancelled,
-          cancelRate: b.cancelRate,
-        }));
-
-      res.json({
-        generalStats,
-        cancelReasons,
-        monthlyTrend,
-        branchBreakdown,
-        companyBreakdown,
-        lifetimeDistribution,
-        riskyProducts,
-      });
-    } catch (error) {
-      console.error("Error calculating cancellation analysis:", error);
-      res.status(500).json({ message: "İptal analizi hesaplanamadı" });
     }
   });
 
@@ -2177,9 +1765,7 @@ Sadece JSON array döndür.`;
 
 // New function using customer profiles with hashtags for richer AI analysis
 function getCustomerProfilePredictionPrompt(type: string, profiles: any[]): string {
-  // Take more profiles for cross-sell to ensure sufficient output
-  const maxProfiles = type === "cross_sell" ? 150 : 100;
-  const profileData = profiles.slice(0, maxProfiles).map((p) => ({
+  const profileData = profiles.slice(0, 100).map((p) => ({
     profileId: p.id,
     name: p.musteriIsmi,
     customerType: p.musteriTipi,
@@ -2222,63 +1808,33 @@ Kurallar:
   }
 
   if (type === "cross_sell") {
-    return `Rol: Deneyimli sigorta çapraz satış (cross-sell) uzmanısın.
-Amaç: Çapraz satış fırsatlarını bul ve satış ekibinin arayacağı müşteri listesi üret.
+    return `Sen deneyimli bir sigorta uzmanısın. Aşağıdaki müşteri profillerine çapraz satış fırsatlarını analiz et.
 
-Müşteri Profilleri (Hashtag'ler ve Ürün Bilgileri dahil):
+Müşteri Profilleri (Hashtag'ler dahil):
 ${JSON.stringify(profileData, null, 2)}
 
-İŞ KURALLARI (mutlaka uygula):
-1. Bireysel / Kurumsal ayrımı: musteriTipi veya vergi no varlığına göre ayır, ayrı strateji üret
-2. Sahip olunan ürünleri (products) analiz et, eksik tamamlayıcı ürünleri tespit et
-
-ÇAPRAZ SATIŞ FIRSAT TİPLERİ (en az 8 tip):
-1. Kasko var → Trafik bizde değil
-2. Trafik var → Kasko bizde değil
-3. Konut var → DASK bizde değil
-4. DASK var → Konut bizde değil
-5. Araç var ama Ferdi Kaza yok
-6. Aile tipi müşteri → Sağlık/Hayat sigortası yok
-7. İşyeri/Kurumsal → Sorumluluk sigortası yok
-8. #sadik_musteri veya #yuksek_potansiyel → Premium ürün öner
-9. #yenileme_riski → Alternatif paket öner
-10. Ürün kombinasyon (bu ürünü alanlar genelde şunu da alıyor)
-
-SKORLAMA (0-100):
-- Zorunlu/eksik ürün (Kasko-Trafik, Konut-DASK): +40
-- #yenileme_riski veya #risk hashtag: +30
-- #sadik_musteri veya #yuksek_potansiyel: +20
-- #aile, #premium, #kurumsal gibi segment hashtag: +15
-- Ürün birlikteliği güçlü: +15
-Skoru nedenleriyle açıkla.
-
+Her müşteri profili için çapraz satış önerisi yap. Hashtag'leri de dikkate al (örn: #yuksek_potansiyel, #premium, #aile).
 Şu JSON formatında döndür:
 [
   {
     "profileId": "profil id",
     "customerName": "müşteri adı",
-    "customerType": "bireysel veya kurumsal",
     "currentProduct": "sahip olduğu ana ürünler",
     "suggestedProduct": "önerilen yeni ürün",
-    "opportunityType": "fırsat tipi (örn: Kasko var Trafik yok)",
     "probability": 85,
-    "reason": "Skor açıklaması ve satış argümanı - hashtag'lere dayalı",
-    "priority": "High/Medium/Low",
-    "nextBestAction": "Call/Email/Visit",
+    "reason": "Neden bu ürünü satın alabilir - hashtag'lere dayalı önerileri içersin",
     "city": "şehir",
     "hashtags": "ilgili hashtag'ler"
   }
 ]
 
-ÖNEMLİ KURALLAR:
-- HER PROFİL İÇİN EN AZ BİR ÖNERİ ÜRET! Toplam ${profileData.length} profil var, EN AZ ${Math.min(profileData.length, 100)} öneri döndür.
-- probability 0-100 arası olmalı, yukarıdaki skorlama kurallarına göre hesapla
-- opportunityType alanına fırsat tipini yaz (örn: "Kasko var Trafik yok")
-- priority: probability >= 70 ise High, 50-69 ise Medium, <50 ise Low
-- nextBestAction: High öncelik = Call, Medium = Email, Low = Visit
-- suggestedProduct: Kasko, Trafik, Sağlık, Konut, DASK, Ferdi Kaza, Seyahat, İşyeri, Sorumluluk, Hayat
-- Bireysel ve Kurumsal müşterilere farklı stratejiler uygula
-- Tüm profilleri tara ve uygun olanlar için fırsat öner
+Kurallar:
+- probability 0-100 arası satış başarı olasılığı olmalı
+- Hashtag'ler önerilerinizi desteklemeli (örn: #aile olan müşteriye çocuk sağlık sigortası öner)
+- suggestedProduct: Kasko, Trafik, Sağlık, Konut, DASK, Ferdi Kaza, Seyahat, İşyeri gibi ürünler
+- En yüksek satış potansiyeli olan profillerden başla
+- reason alanına satış argümanını açıkla
+- EN AZ 50 profil için öneri yap, mümkünse tüm profiller için
 - Sadece JSON array döndür, başka metin ekleme`;
   }
 

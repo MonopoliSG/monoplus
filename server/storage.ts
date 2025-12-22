@@ -78,7 +78,6 @@ export interface IStorage {
   getCustomerPredictionsByCustomerId(customerId: string): Promise<AiCustomerPrediction[]>;
   createCustomerPredictions(predictions: InsertAiCustomerPrediction[]): Promise<AiCustomerPrediction[]>;
   deleteCustomerPredictionsByType(analysisType: string): Promise<void>;
-  deleteCustomerPredictionsByProfileIds(analysisType: string, profileIds: string[]): Promise<void>;
   
   getCustomersPaginated(filters: {
     page: number;
@@ -405,16 +404,6 @@ export class DatabaseStorage implements IStorage {
 
   async deleteCustomerPredictionsByType(analysisType: string): Promise<void> {
     await db.delete(aiCustomerPredictions).where(eq(aiCustomerPredictions.analysisType, analysisType));
-  }
-
-  async deleteCustomerPredictionsByProfileIds(analysisType: string, profileIds: string[]): Promise<void> {
-    if (profileIds.length === 0) return;
-    await db.delete(aiCustomerPredictions).where(
-      and(
-        eq(aiCustomerPredictions.analysisType, analysisType),
-        inArray(aiCustomerPredictions.profileId, profileIds)
-      )
-    );
   }
 
   async getCustomersPaginated(filters: {

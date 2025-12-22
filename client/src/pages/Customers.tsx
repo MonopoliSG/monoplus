@@ -28,7 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Upload, Filter, Search, Eye, X, Calendar, ChevronLeft, ChevronRight, Download } from "lucide-react";
+import { Upload, Filter, Search, Eye, X, Calendar, ChevronLeft, ChevronRight } from "lucide-react";
 import { Link } from "wouter";
 import type { Customer } from "@shared/schema";
 import { format, parseISO } from "date-fns";
@@ -516,33 +516,6 @@ export default function Customers() {
             >
               <Filter className="h-4 w-4 mr-2" />
               Filtreler
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => {
-                const filterUrl = buildCustomerFilterUrl({
-                  search: filters.search || undefined,
-                  city: filters.city || undefined,
-                  branch: filters.branch || undefined,
-                  segment: filters.segment || undefined,
-                  renewalDays: filters.renewalDays ? parseInt(filters.renewalDays) : undefined,
-                  aiPredictionType: filters.aiPredictionType || undefined,
-                  aiAnalysisId: filters.aiAnalysisId || undefined,
-                  dateType: filters.dateType || undefined,
-                  dateFrom: filters.dateFrom || undefined,
-                  dateTo: filters.dateTo || undefined,
-                  customerType: filters.customerType || undefined,
-                  hasBranch: filters.hasBranch || undefined,
-                  notHasBranch: filters.notHasBranch || undefined,
-                  minAge: filters.minAge ? parseInt(filters.minAge) : undefined,
-                });
-                const exportUrl = filterUrl.replace("/customers", "/api/customers/export");
-                window.open(exportUrl, "_blank");
-              }}
-              data-testid="button-export-excel"
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Excel'e Aktar
             </Button>
             <Button asChild data-testid="button-import-csv">
               <Link href="/import">
