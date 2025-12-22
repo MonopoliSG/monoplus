@@ -130,7 +130,7 @@ function parseCustomerFromCsv(csvRow: Record<string, string>): Partial<InsertCus
   return customer as Partial<InsertCustomer>;
 }
 
-// OpenAI client - supports both Replit AI Integrations and standard API key
+// OpenAI client configuration
 const openaiApiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
 const openaiBaseUrl = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
 
