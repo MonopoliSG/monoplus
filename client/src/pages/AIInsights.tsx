@@ -13,7 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
-import { Sparkles, RefreshCw, TrendingUp, AlertTriangle, ShoppingCart, FileSpreadsheet, Users, ExternalLink, Search, Filter, Wand2, Trash2, Hash, Tag, Gift } from "lucide-react";
+import { Sparkles, RefreshCw, TrendingUp, AlertTriangle, ShoppingCart, FileSpreadsheet, Users, ExternalLink, Search, Filter, Wand2, Trash2, Hash, Tag, Gift, Megaphone } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -838,12 +838,20 @@ export default function AIInsights() {
                     </CardHeader>
                     <CardContent className="space-y-3">
                       <p className="text-sm text-muted-foreground">{analysis.insight}</p>
-                      <Link href={buildSegmentProfileUrl(analysis.title, metadata || undefined)}>
-                        <Button variant="outline" size="sm" className="w-full" data-testid={`button-view-segment-${analysis.id}`}>
-                          <Users className="h-4 w-4 mr-2" />
-                          Müşteri Profillerini Gör
-                        </Button>
-                      </Link>
+                      <div className="flex gap-2">
+                        <Link href={buildSegmentProfileUrl(analysis.title, metadata || undefined)} className="flex-1">
+                          <Button variant="outline" size="sm" className="w-full" data-testid={`button-view-segment-${analysis.id}`}>
+                            <Users className="h-4 w-4 mr-2" />
+                            Profilleri Gör
+                          </Button>
+                        </Link>
+                        <Link href={`/campaigns?segmentId=${analysis.id}`} className="flex-1">
+                          <Button variant="default" size="sm" className="w-full" data-testid={`button-create-campaign-${analysis.id}`}>
+                            <Megaphone className="h-4 w-4 mr-2" />
+                            Kampanya Oluştur
+                          </Button>
+                        </Link>
+                      </div>
                     </CardContent>
                   </Card>
                 );

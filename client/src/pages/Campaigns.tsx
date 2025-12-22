@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +43,7 @@ const statusColors: Record<string, "default" | "secondary" | "destructive" | "ou
 
 export default function Campaigns() {
   const { toast } = useToast();
+  const [location, setLocation] = useLocation();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
   const [formData, setFormData] = useState({
@@ -54,6 +56,18 @@ export default function Campaigns() {
     startDate: "",
     endDate: "",
   });
+
+  // Handle URL query param for pre-selecting segment and opening dialog
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const segmentId = params.get("segmentId");
+    if (segmentId) {
+      setFormData(prev => ({ ...prev, segmentId }));
+      setDialogOpen(true);
+      // Clear the query param from URL using history API
+      window.history.replaceState({}, "", "/campaigns");
+    }
+  }, [location]);
 
   const { data: campaigns = [], isLoading } = useQuery<Campaign[]>({
     queryKey: ["/api/campaigns"],
