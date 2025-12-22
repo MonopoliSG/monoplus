@@ -266,8 +266,8 @@ export default function CustomerProfileDetail() {
                 <p className="text-sm text-muted-foreground">Toplam Poliçe</p>
               </div>
               <div className="text-center p-4 bg-muted rounded-lg">
-                <p className="text-3xl font-bold text-green-600">{formatCurrency(profile.toplamNetPrim)}</p>
-                <p className="text-sm text-muted-foreground">Toplam Net Prim</p>
+                <p className="text-3xl font-bold text-green-600">{formatCurrency(profile.toplamBrutPrim)}</p>
+                <p className="text-sm text-muted-foreground">Toplam Brüt Prim</p>
               </div>
               <div className="text-center p-4 bg-muted rounded-lg">
                 <p className="text-3xl font-bold">{profile.aracSayisi || 0}</p>
@@ -456,7 +456,7 @@ function PolicyTable({
             <TableHead>Baslangıç</TableHead>
             <TableHead>Bitiş</TableHead>
             <TableHead>Durum</TableHead>
-            <TableHead className="text-right">Net Prim</TableHead>
+            <TableHead className="text-right">Brüt Prim</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -470,7 +470,7 @@ function PolicyTable({
               <TableCell>{formatDate(policy.baslangicTarihi)}</TableCell>
               <TableCell>{formatDate(policy.bitisTarihi)}</TableCell>
               <TableCell>{getExpiryBadge(policy.bitisTarihi)}</TableCell>
-              <TableCell className="text-right">{formatCurrency(policy.net)}</TableCell>
+              <TableCell className="text-right">{formatCurrency(policy.brut)}</TableCell>
             </TableRow>
           ))}
         </TableBody>
