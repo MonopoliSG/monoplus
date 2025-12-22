@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Users, Target, Calendar, AlertTriangle, ArrowRight } from "lucide-react";
+import { Users, Target, Calendar, AlertTriangle, ArrowRight, FileText } from "lucide-react";
 import { Link } from "wouter";
 import { format, differenceInDays, parseISO } from "date-fns";
 import { tr } from "date-fns/locale";
@@ -69,8 +69,8 @@ export default function Dashboard() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Toplam Müşteri
+              <FileText className="h-4 w-4" />
+              Toplam Poliçe Sayısı
             </CardTitle>
           </CardHeader>
           <CardContent>

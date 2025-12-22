@@ -877,7 +877,7 @@ export default function AIInsights() {
                   <Badge variant="outline">
                     {filteredProfiles.length} müşteri
                   </Badge>
-                  <Link href="/customer-profiles">
+                  <Link href={`/customer-profiles?hashtags=${encodeURIComponent(selectedHashtags.join(','))}`}>
                     <Button variant="outline" size="sm" data-testid="button-goto-profiles">
                       <Users className="h-4 w-4 mr-2" />
                       Profillere Git

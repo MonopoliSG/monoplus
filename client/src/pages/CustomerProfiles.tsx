@@ -272,7 +272,7 @@ export default function CustomerProfiles() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <Users className="h-6 w-6 text-muted-foreground" />
-          <h1 className="text-2xl font-bold">Müsteri Profilleri</h1>
+          <h1 className="text-2xl font-bold">Müşteri Profilleri</h1>
         </div>
         <div className="flex flex-wrap gap-2 items-center">
           <div className="flex items-center gap-1">
