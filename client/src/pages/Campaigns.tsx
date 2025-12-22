@@ -24,7 +24,7 @@ import {
 import { Plus, Users, Target, TrendingUp, Calendar, Edit2, Trash2 } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { Campaign, Segment } from "@shared/schema";
+import type { Campaign, AiAnalysis } from "@shared/schema";
 
 const statusLabels: Record<string, string> = {
   draft: "Taslak",
@@ -59,8 +59,9 @@ export default function Campaigns() {
     queryKey: ["/api/campaigns"],
   });
 
-  const { data: segments = [] } = useQuery<Segment[]>({
-    queryKey: ["/api/segments"],
+  const { data: aiSegments = [] } = useQuery<AiAnalysis[]>({
+    queryKey: ["/api/ai/analyses"],
+    select: (data) => data.filter((a) => a.analysisType === "segmentation"),
   });
 
   const createMutation = useMutation({
@@ -337,11 +338,17 @@ export default function Campaigns() {
                     <SelectValue placeholder="Segment seçin" />
                   </SelectTrigger>
                   <SelectContent>
-                    {segments.map((segment: any) => (
-                      <SelectItem key={segment.id} value={segment.id}>
-                        {segment.name}
-                      </SelectItem>
-                    ))}
+                    {aiSegments.length === 0 ? (
+                      <div className="p-2 text-sm text-muted-foreground text-center">
+                        AI Analizleri sayfasından segment oluşturun
+                      </div>
+                    ) : (
+                      aiSegments.map((segment) => (
+                        <SelectItem key={segment.id} value={segment.id}>
+                          {segment.title}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               </div>
