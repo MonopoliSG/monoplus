@@ -765,6 +765,100 @@ Sadece JSON array döndür.`;
     }
   });
 
+  // Export customer profiles to Excel (same format as import)
+  app.post("/api/customer-profiles/export-excel", isAuthenticated, async (req, res) => {
+    try {
+      const { filters } = req.body;
+      
+      // Get all profiles matching filters (no pagination)
+      const hashtagArray = filters?.hashtags 
+        ? filters.hashtags.split(",").map((h: string) => h.trim()).filter((h: string) => h).map((h: string) => h.replace(/^#/, ''))
+        : undefined;
+      
+      const result = await storage.getCustomerProfilesPaginated({
+        page: 1,
+        limit: 100000, // Large limit to get all
+        search: filters?.search,
+        city: filters?.city,
+        customerType: filters?.customerType,
+        policyType: filters?.policyType,
+        hashtags: hashtagArray,
+        product: filters?.product,
+        hasBranch: filters?.hasBranch,
+        notHasBranch: filters?.notHasBranch,
+        policyCountMin: filters?.policyCountMin ? parseInt(filters.policyCountMin) : undefined,
+        policyCountMax: filters?.policyCountMax ? parseInt(filters.policyCountMax) : undefined,
+        vehicleCountMin: filters?.vehicleCountMin ? parseInt(filters.vehicleCountMin) : undefined,
+        vehicleAgeMax: filters?.vehicleAgeMax ? parseInt(filters.vehicleAgeMax) : undefined,
+      });
+      
+      // Get hesapKodulari from filtered profiles
+      const hesapKodulari = result.profiles.map(p => p.hesapKodu).filter(Boolean);
+      
+      // Get customer data for export (using customer table which has all columns)
+      let customersToExport: any[] = [];
+      const allCustomers = await storage.getAllCustomers();
+      
+      if (hesapKodulari.length > 0) {
+        const hesapKoduSet = new Set(hesapKodulari);
+        customersToExport = allCustomers.filter(c => hesapKoduSet.has(c.hesapKodu));
+      } else {
+        customersToExport = allCustomers;
+      }
+
+      if (customersToExport.length === 0) {
+        return res.status(400).json({ message: "Export için müşteri bulunamadı" });
+      }
+
+      // Create reverse mapping from csvColumnMapping (field -> first Turkish header)
+      const exportColumnMapping: Record<string, string> = {};
+      const seenFields = new Set<string>();
+      for (const [header, field] of Object.entries(csvColumnMapping)) {
+        if (!seenFields.has(field as string)) {
+          exportColumnMapping[field as string] = header;
+          seenFields.add(field as string);
+        }
+      }
+
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet("Müşteriler");
+
+      // Set columns with Turkish headers
+      const columns = Object.entries(exportColumnMapping).map(([key, header]) => ({
+        header,
+        key,
+        width: 20,
+      }));
+      worksheet.columns = columns;
+
+      // Add data rows
+      customersToExport.forEach((customer: any) => {
+        const rowData: Record<string, any> = {};
+        for (const [fieldName] of Object.entries(exportColumnMapping)) {
+          rowData[fieldName] = customer[fieldName] || "";
+        }
+        worksheet.addRow(rowData);
+      });
+
+      // Style header row
+      worksheet.getRow(1).font = { bold: true };
+      worksheet.getRow(1).fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FFE0E0E0" },
+      };
+
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename=musteri_profilleri_${Date.now()}.xlsx`);
+
+      await workbook.xlsx.write(res);
+      res.end();
+    } catch (error) {
+      console.error("Error exporting customer profiles:", error);
+      res.status(500).json({ message: "Export başarısız oldu" });
+    }
+  });
+
   // Get predictions for a specific customer
   app.get("/api/ai/predictions/customer/:customerId", isAuthenticated, async (req, res) => {
     try {

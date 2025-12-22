@@ -34,7 +34,8 @@ import {
   User,
   Sparkles,
   Car,
-  Info
+  Info,
+  Download
 } from "lucide-react";
 import {
   Tooltip,
@@ -151,6 +152,64 @@ export default function CustomerProfiles() {
     },
   });
 
+  const [isExporting, setIsExporting] = useState(false);
+  
+  const handleExportExcel = async () => {
+    try {
+      setIsExporting(true);
+      
+      // Send current filters to backend so it exports ALL matching profiles
+      const filters = {
+        search,
+        city: city !== "all" ? city : undefined,
+        customerType: customerType !== "all" ? customerType : undefined,
+        policyType: policyType !== "all" ? policyType : undefined,
+        product: product !== "all" ? product : undefined,
+        hashtags,
+        hasBranch,
+        notHasBranch,
+        policyCountMin,
+        policyCountMax,
+        vehicleCountMin,
+        vehicleAgeMax,
+      };
+      
+      const response = await fetch("/api/customer-profiles/export-excel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ filters }),
+      });
+      
+      if (!response.ok) {
+        throw new Error("Export failed");
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `musteri_profilleri_${Date.now()}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast({
+        title: "Export Tamamlandı",
+        description: `Filtrelenen müşteri profilleri Excel olarak indirildi.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Hata",
+        description: "Excel export başarısız oldu",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   useEffect(() => {
     const params = new URLSearchParams();
     if (search) params.set("search", search);
@@ -254,6 +313,27 @@ export default function CustomerProfiles() {
               </TooltipTrigger>
               <TooltipContent side="bottom" className="max-w-[300px]">
                 <p>Tüm müşterileri demografik bilgiler ve poliçe bilgileriyle analiz edip detaylı müşteri profilleri oluşturur. Dilediğiniz zaman tekrar analiz ettirebilirsiniz.</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              onClick={handleExportExcel}
+              disabled={isExporting || !data?.profiles?.length}
+              data-testid="button-export-excel"
+            >
+              <Download className={`h-4 w-4 mr-2 ${isExporting ? "animate-pulse" : ""}`} />
+              {isExporting ? "İndiriliyor..." : "Excel'e Export Et"}
+            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8" data-testid="button-export-info">
+                  <Info className="h-4 w-4 text-muted-foreground" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[300px]">
+                <p>Filtrelenmiş müşteri listesini import formatıyla birebir aynı formatta Excel dosyası olarak indirir. Hem manuel filtreleme hem de AI analiz sonuçları için kullanabilirsiniz.</p>
               </TooltipContent>
             </Tooltip>
           </div>
