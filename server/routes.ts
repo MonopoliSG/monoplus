@@ -935,8 +935,8 @@ Sadece JSON array döndür.`;
 
       const prompt = getCustomerProfilePredictionPrompt(type, sampledProfiles);
 
-      // Increase tokens for cross-sell to ensure more comprehensive output
-      const maxTokens = type === "cross_sell" ? 32000 : 16000;
+      // Use maximum allowed tokens (16384 is the limit for gpt-4o)
+      const maxTokens = 16384;
       
       const response = await openai.chat.completions.create({
         model: "gpt-4o",
