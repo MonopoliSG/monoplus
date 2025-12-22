@@ -127,17 +127,24 @@ export default function CustomerProfileDetail() {
     );
   }
 
+  const cancelledPolicies = policies?.filter(p => 
+    p.policeKayitTipi === 'İptal'
+  ) || [];
+
   const activePolicies = policies?.filter(p => {
+    if (p.policeKayitTipi === 'İptal') return false;
     const days = getDaysUntilExpiry(p.bitisTarihi);
     return days !== null && days >= 0;
   }) || [];
 
   const expiredPolicies = policies?.filter(p => {
+    if (p.policeKayitTipi === 'İptal') return false;
     const days = getDaysUntilExpiry(p.bitisTarihi);
     return days !== null && days < 0;
   }) || [];
 
   const renewingSoon = policies?.filter(p => {
+    if (p.policeKayitTipi === 'İptal') return false;
     const days = getDaysUntilExpiry(p.bitisTarihi);
     return days !== null && days >= 0 && days <= 30;
   }) || [];
@@ -381,12 +388,15 @@ export default function CustomerProfileDetail() {
             </div>
           ) : (
             <Tabs defaultValue="active">
-              <TabsList className="mb-4">
+              <TabsList className="mb-4 flex-wrap">
                 <TabsTrigger value="active" data-testid="tab-active-policies">
                   Aktif ({activePolicies.length})
                 </TabsTrigger>
                 <TabsTrigger value="expired" data-testid="tab-expired-policies">
                   Süresi Dolan ({expiredPolicies.length})
+                </TabsTrigger>
+                <TabsTrigger value="cancelled" data-testid="tab-cancelled-policies">
+                  İptal ({cancelledPolicies.length})
                 </TabsTrigger>
                 <TabsTrigger value="all" data-testid="tab-all-policies">
                   Tümü ({policies?.length || 0})
@@ -399,6 +409,10 @@ export default function CustomerProfileDetail() {
 
               <TabsContent value="expired">
                 <PolicyTable policies={expiredPolicies} formatCurrency={formatCurrency} formatDate={formatDate} getExpiryBadge={getExpiryBadge} />
+              </TabsContent>
+
+              <TabsContent value="cancelled">
+                <PolicyTable policies={cancelledPolicies} formatCurrency={formatCurrency} formatDate={formatDate} getExpiryBadge={getExpiryBadge} />
               </TabsContent>
 
               <TabsContent value="all">
