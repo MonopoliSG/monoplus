@@ -911,112 +911,132 @@ Sadece JSON array döndür.`;
     }
   });
 
-  // Run customer-specific AI analysis
+  // Run customer-specific AI analysis (incremental - only analyzes new/unanalyzed customers)
   app.post("/api/ai/analyze-customers", isAuthenticated, async (req, res) => {
     try {
-      const { type } = req.body;
+      const { type, forceReanalyze } = req.body;
       
       if (!openai) {
         return res.status(503).json({ message: "AI özellikleri aktif değil. OPENAI_API_KEY gerekli." });
       }
 
       // Use customer profiles with hashtags for richer AI analysis
-      const profiles = await storage.getAllCustomerProfilesForAiAnalysis();
-      if (profiles.length === 0) {
+      const allProfiles = await storage.getAllCustomerProfilesForAiAnalysis();
+      if (allProfiles.length === 0) {
         return res.status(400).json({ message: "Analiz için müşteri profili bulunamadı" });
       }
 
-      // Delete existing predictions for this type
-      await storage.deleteCustomerPredictionsByType(type);
-
-      // For large datasets, sample profiles intelligently
-      const sampleSize = Math.min(200, profiles.length);
-      const sampledProfiles = profiles.slice(0, sampleSize);
-
-      const prompt = getCustomerProfilePredictionPrompt(type, sampledProfiles);
-
-      // Use maximum allowed tokens (16384 is the limit for gpt-4o)
-      const maxTokens = 16384;
+      // Get existing predictions to find already analyzed customers
+      const existingPredictions = await storage.getCustomerPredictions({ analysisType: type });
+      const analyzedProfileIds = new Set(existingPredictions.map(p => p.profileId || p.customerId));
       
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [{ role: "user", content: prompt }],
-        max_completion_tokens: maxTokens,
-        temperature: 0.3,
-      });
-
-      let content = response.choices[0]?.message?.content || "[]";
+      // Only analyze profiles that haven't been analyzed yet (incremental)
+      let profilesToAnalyze = forceReanalyze 
+        ? allProfiles 
+        : allProfiles.filter(p => !analyzedProfileIds.has(p.id));
       
-      // Remove markdown code blocks if present
-      content = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+      console.log(`Total profiles: ${allProfiles.length}, Already analyzed: ${analyzedProfileIds.size}, To analyze: ${profilesToAnalyze.length}`);
       
-      console.log("AI Response content length:", content.length);
-      console.log("AI Response first 500 chars:", content.substring(0, 500));
-      let predictions: InsertAiCustomerPrediction[] = [];
+      // If all profiles are already analyzed, return existing predictions
+      if (profilesToAnalyze.length === 0) {
+        return res.json({ 
+          success: true, 
+          count: existingPredictions.length, 
+          predictions: existingPredictions,
+          message: "Tüm müşteriler zaten analiz edilmiş. Yeni müşteri yok."
+        });
+      }
 
-      try {
-        // Try multiple parsing strategies
-        let rawPredictions: any[] = [];
+      // If forceReanalyze, delete existing predictions first
+      if (forceReanalyze) {
+        await storage.deleteCustomerPredictionsByType(type);
+      }
+
+      // Process in batches to analyze ALL customers
+      const batchSize = 50; // Analyze 50 profiles per API call
+      const allNewPredictions: InsertAiCustomerPrediction[] = [];
+      const totalBatches = Math.ceil(profilesToAnalyze.length / batchSize);
+      
+      console.log(`Processing ${totalBatches} batches of ${batchSize} profiles each`);
+
+      for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+        const start = batchIndex * batchSize;
+        const end = Math.min(start + batchSize, profilesToAnalyze.length);
+        const batchProfiles = profilesToAnalyze.slice(start, end);
         
-        // Strategy 1: Direct JSON parse
+        console.log(`Processing batch ${batchIndex + 1}/${totalBatches} (profiles ${start + 1}-${end})`);
+        
         try {
-          const parsed = JSON.parse(content);
-          rawPredictions = Array.isArray(parsed) ? parsed : (parsed.predictions || parsed.data || []);
-          console.log("Strategy 1 succeeded, count:", rawPredictions.length);
-        } catch (e1) {
-          console.log("Strategy 1 failed:", (e1 as Error).message);
-          // Strategy 2: Find any JSON-like content between first [ and last ]
-          const startIdx = content.indexOf('[');
-          const endIdx = content.lastIndexOf(']');
-          console.log("Strategy 2: startIdx=", startIdx, "endIdx=", endIdx);
-          if (startIdx !== -1 && endIdx > startIdx) {
-            const jsonStr = content.substring(startIdx, endIdx + 1);
-            console.log("JSON substring length:", jsonStr.length);
-            try {
-              rawPredictions = JSON.parse(jsonStr);
-              console.log("Strategy 2 succeeded, count:", rawPredictions.length);
-            } catch (e2) {
-              console.log("Strategy 2 failed:", (e2 as Error).message);
-              console.log("JSON substring first 200 chars:", jsonStr.substring(0, 200));
+          const prompt = getCustomerProfilePredictionPrompt(type, batchProfiles);
+          
+          const response = await openai.chat.completions.create({
+            model: "gpt-4o",
+            messages: [{ role: "user", content: prompt }],
+            max_completion_tokens: 16384,
+            temperature: 0.3,
+          });
+
+          let content = response.choices[0]?.message?.content || "[]";
+          content = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+          
+          console.log(`Batch ${batchIndex + 1} AI Response length: ${content.length}`);
+          
+          let rawPredictions: any[] = [];
+          try {
+            const parsed = JSON.parse(content);
+            rawPredictions = Array.isArray(parsed) ? parsed : (parsed.predictions || parsed.data || []);
+          } catch {
+            const startIdx = content.indexOf('[');
+            const endIdx = content.lastIndexOf(']');
+            if (startIdx !== -1 && endIdx > startIdx) {
+              try {
+                rawPredictions = JSON.parse(content.substring(startIdx, endIdx + 1));
+              } catch { /* ignore */ }
             }
           }
+          
+          console.log(`Batch ${batchIndex + 1} parsed ${rawPredictions.length} predictions`);
+          
+          const batchPredictions: InsertAiCustomerPrediction[] = rawPredictions.map((p: any) => ({
+            analysisType: type,
+            customerId: String(p.customerId || p.profileId || p.id || ""),
+            profileId: String(p.profileId || p.customerId || p.id || ""),
+            customerName: String(p.customerName || p.name || p.müşteri_adı || ""),
+            currentProduct: String(p.currentProduct || p.product || p.mevcut_ürün || ""),
+            suggestedProduct: p.suggestedProduct || p.suggested_product || p.önerilen_ürün || null,
+            probability: Math.min(100, Math.max(0, parseInt(p.probability || p.olasılık || p.risk) || 50)),
+            reason: String(p.reason || p.sebep || p.açıklama || ""),
+            city: p.city || p.şehir || null,
+            hashtags: p.hashtags || null,
+            metadata: {
+              opportunityType: p.opportunityType || p.fırsat_tipi || null,
+              priority: p.priority || null,
+              nextBestAction: p.nextBestAction || null,
+              customerType: p.customerType || null,
+            },
+          })).filter((p: any) => p.customerId && p.customerName);
+          
+          allNewPredictions.push(...batchPredictions);
+          
+          // Save predictions after each batch
+          if (batchPredictions.length > 0) {
+            await storage.createCustomerPredictions(batchPredictions);
+          }
+        } catch (batchError) {
+          console.error(`Error in batch ${batchIndex + 1}:`, batchError);
+          // Continue with next batch
         }
-        
-        console.log("Parsed predictions count:", rawPredictions.length);
-        if (rawPredictions.length > 0) {
-          console.log("First prediction sample:", JSON.stringify(rawPredictions[0]));
-        }
-        
-        predictions = rawPredictions.map((p: any) => ({
-          analysisType: type,
-          customerId: String(p.customerId || p.profileId || p.id || ""),
-          profileId: String(p.profileId || p.customerId || p.id || ""),
-          customerName: String(p.customerName || p.name || p.müşteri_adı || ""),
-          currentProduct: String(p.currentProduct || p.product || p.mevcut_ürün || ""),
-          suggestedProduct: p.suggestedProduct || p.suggested_product || p.önerilen_ürün || null,
-          probability: Math.min(100, Math.max(0, parseInt(p.probability || p.olasılık || p.risk) || 50)),
-          reason: String(p.reason || p.sebep || p.açıklama || ""),
-          city: p.city || p.şehir || null,
-          hashtags: p.hashtags || null,
-          metadata: {
-            opportunityType: p.opportunityType || p.fırsat_tipi || null,
-            priority: p.priority || null,
-            nextBestAction: p.nextBestAction || null,
-            customerType: p.customerType || null,
-          },
-        })).filter((p: any) => p.customerId && p.customerName);
-        console.log("Filtered predictions count:", predictions.length);
-      } catch (parseError) {
-        console.error("Error parsing AI response:", parseError);
-        console.log("Raw AI response:", content.substring(0, 1000));
       }
-
-      if (predictions.length > 0) {
-        await storage.createCustomerPredictions(predictions);
-      }
+      
+      console.log(`Total new predictions: ${allNewPredictions.length}`);
 
       const savedPredictions = await storage.getCustomerPredictions({ analysisType: type });
-      res.json({ success: true, count: savedPredictions.length, predictions: savedPredictions });
+      res.json({ 
+        success: true, 
+        count: savedPredictions.length, 
+        newCount: allNewPredictions.length,
+        predictions: savedPredictions 
+      });
     } catch (error) {
       console.error("Error analyzing customers:", error);
       res.status(500).json({ message: "Müşteri analizi başarısız oldu" });
