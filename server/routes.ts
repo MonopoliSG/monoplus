@@ -197,6 +197,119 @@ export async function registerRoutes(
     }
   });
 
+  // Excel export endpoint for filtered customers
+  app.get("/api/customers/export", isAuthenticated, async (req, res) => {
+    try {
+      const search = req.query.search as string;
+      const city = req.query.city as string;
+      const branch = req.query.branch as string;
+      const segment = req.query.segment as string;
+      const renewalDays = req.query.renewalDays ? parseInt(req.query.renewalDays as string) : undefined;
+      const aiPredictionType = req.query.aiPredictionType as string;
+      const aiAnalysisId = req.query.aiAnalysisId as string;
+      const customerType = req.query.customerType as string;
+      const dateType = req.query.dateType as string;
+      const dateFrom = req.query.dateFrom as string;
+      const dateTo = req.query.dateTo as string;
+      const hasBranch = req.query.hasBranch as string;
+      const notHasBranch = req.query.notHasBranch as string;
+      const minAge = req.query.minAge ? parseInt(req.query.minAge as string) : undefined;
+      const hasBranch2 = req.query.hasBranch2 as string;
+      const notHasBranch2 = req.query.notHasBranch2 as string;
+      const policyCountMin = req.query.policyCountMin ? parseInt(req.query.policyCountMin as string) : undefined;
+      const policyCountMax = req.query.policyCountMax ? parseInt(req.query.policyCountMax as string) : undefined;
+      const renewalProduct = req.query.renewalProduct as string;
+      const vehicleCountMin = req.query.vehicleCountMin ? parseInt(req.query.vehicleCountMin as string) : undefined;
+      const vehicleAgeMax = req.query.vehicleAgeMax ? parseInt(req.query.vehicleAgeMax as string) : undefined;
+
+      const result = await storage.getCustomersPaginated({
+        page: 1,
+        limit: 100000,
+        search,
+        city,
+        branch,
+        segment,
+        renewalDays,
+        aiPredictionType,
+        aiAnalysisId,
+        customerType,
+        dateType,
+        dateFrom,
+        dateTo,
+        hasBranch,
+        notHasBranch,
+        minAge,
+        hasBranch2,
+        notHasBranch2,
+        policyCountMin,
+        policyCountMax,
+        renewalProduct,
+        vehicleCountMin,
+        vehicleAgeMax,
+      });
+
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet("Müşteriler");
+
+      worksheet.columns = [
+        { header: "TC Kimlik No", key: "tcKimlikNo", width: 15 },
+        { header: "Müşteri Adı", key: "musteriIsmi", width: 25 },
+        { header: "Şehir", key: "sehir", width: 15 },
+        { header: "Telefon", key: "telefon1", width: 15 },
+        { header: "E-posta", key: "ePosta", width: 25 },
+        { header: "Branş", key: "anaBrans", width: 20 },
+        { header: "Alt Branş", key: "bransAdi", width: 25 },
+        { header: "Bitiş Tarihi", key: "bitisTarihi", width: 12 },
+        { header: "Brüt Prim", key: "brut", width: 12 },
+        { header: "Net Prim", key: "net", width: 12 },
+        { header: "Müşteri Tipi", key: "musteriTipi", width: 15 },
+        { header: "Plaka", key: "aracPlakasi", width: 12 },
+        { header: "Marka", key: "aracMarkasi", width: 15 },
+        { header: "Model", key: "aracModeli", width: 15 },
+        { header: "Model Yılı", key: "modelYili", width: 10 },
+        { header: "Poliçe No", key: "policeNumarasi", width: 20 },
+      ];
+
+      worksheet.getRow(1).font = { bold: true };
+      worksheet.getRow(1).fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FF4472C4" },
+      };
+      worksheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
+
+      for (const customer of result.customers) {
+        worksheet.addRow({
+          tcKimlikNo: customer.tcKimlikNo,
+          musteriIsmi: customer.musteriIsmi,
+          sehir: customer.sehir,
+          telefon1: customer.telefon1,
+          ePosta: customer.ePosta,
+          anaBrans: customer.anaBrans,
+          bransAdi: customer.bransAdi,
+          bitisTarihi: customer.bitisTarihi,
+          brut: customer.brut,
+          net: customer.net,
+          musteriTipi: customer.musteriTipi,
+          aracPlakasi: customer.aracPlakasi,
+          aracMarkasi: customer.aracMarkasi,
+          aracModeli: customer.aracModeli,
+          modelYili: customer.modelYili,
+          policeNumarasi: customer.policeNumarasi,
+        });
+      }
+
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename=musteriler_${new Date().toISOString().split("T")[0]}.xlsx`);
+
+      await workbook.xlsx.write(res);
+      res.end();
+    } catch (error) {
+      console.error("Error exporting customers:", error);
+      res.status(500).json({ message: "Excel dosyası oluşturulamadı" });
+    }
+  });
+
   app.get("/api/customers/:id", isAuthenticated, async (req, res) => {
     try {
       const customer = await storage.getCustomer(req.params.id);
