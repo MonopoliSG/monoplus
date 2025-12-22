@@ -393,6 +393,26 @@ export default function AIInsights() {
     select: (data) => data.filter((a) => a.analysisType === "segmentation"),
   });
 
+  // Cancellation Analysis Dashboard Data
+  interface CancellationAnalysis {
+    generalStats: { toplamPolice: number; iptalAdedi: number; iptalOrani: number };
+    cancelReasons: { reason: string; count: number; percentage: number }[];
+    monthlyTrend: { month: string; count: number }[];
+    branchBreakdown: { branch: string; total: number; cancelled: number; cancelRate: number }[];
+    companyBreakdown: { company: string; total: number; cancelled: number; cancelRate: number }[];
+    lifetimeDistribution: { label: string; count: number; percentage: number }[];
+    riskyProducts: { product: string; totalPolicies: number; cancelledPolicies: number; cancelRate: number }[];
+  }
+
+  const { data: cancellationAnalysis, isLoading: cancellationLoading } = useQuery<CancellationAnalysis>({
+    queryKey: ["/api/ai/cancellation-analysis"],
+    queryFn: async () => {
+      const res = await fetch("/api/ai/cancellation-analysis", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch cancellation analysis");
+      return res.json();
+    },
+  });
+
   const { data: profilesWithHashtags = [], isLoading: hashtagsLoading } = useQuery<CustomerProfile[]>({
     queryKey: ["/api/customer-profiles/all"],
     queryFn: async () => {
@@ -668,6 +688,278 @@ export default function AIInsights() {
         </TabsList>
 
         <TabsContent value="churn" className="space-y-4">
+          {/* Cancellation Analysis Dashboard */}
+          {cancellationLoading ? (
+            <div className="animate-pulse space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-24 bg-muted rounded" />
+                ))}
+              </div>
+            </div>
+          ) : cancellationAnalysis && cancellationAnalysis.generalStats.toplamPolice > 0 ? (
+            <>
+              {/* General Stats Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Toplam Poliçe</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold" data-testid="text-total-policies">
+                      {cancellationAnalysis.generalStats.toplamPolice.toLocaleString("tr-TR")}
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">İptal Edilen</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-destructive" data-testid="text-cancelled-policies">
+                      {cancellationAnalysis.generalStats.iptalAdedi.toLocaleString("tr-TR")}
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">İptal Oranı</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold" data-testid="text-cancel-rate">
+                      %{cancellationAnalysis.generalStats.iptalOrani}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Cancel Reasons & Lifetime Distribution */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {/* Cancel Reasons */}
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4" />
+                      İptal Sebepleri Dağılımı
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ScrollArea className="h-[280px]">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Sebep</TableHead>
+                            <TableHead className="text-right">Adet</TableHead>
+                            <TableHead className="text-right">Oran</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {cancellationAnalysis.cancelReasons.map((r, i) => (
+                            <TableRow key={i}>
+                              <TableCell className="font-medium">{r.reason}</TableCell>
+                              <TableCell className="text-right">{r.count.toLocaleString("tr-TR")}</TableCell>
+                              <TableCell className="text-right">%{r.percentage}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </ScrollArea>
+                  </CardContent>
+                </Card>
+
+                {/* Lifetime Distribution */}
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      <TrendingUp className="h-4 w-4" />
+                      Poliçe Yaşam Süresi Dağılımı
+                    </CardTitle>
+                    <CardDescription>İptal edilen poliçelerin satıştan iptale kadar geçen süre</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {cancellationAnalysis.lifetimeDistribution.map((bucket, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <div className="w-24 text-sm text-muted-foreground">{bucket.label}</div>
+                          <div className="flex-1 h-6 bg-muted rounded overflow-hidden">
+                            <div 
+                              className="h-full bg-primary/60 rounded"
+                              style={{ width: `${bucket.percentage}%` }}
+                            />
+                          </div>
+                          <div className="w-20 text-sm text-right">
+                            {bucket.count.toLocaleString("tr-TR")} (%{bucket.percentage})
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Branch & Company Breakdown */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {/* Branch Breakdown */}
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium">Branş Bazında İptal Oranları</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ScrollArea className="h-[250px]">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Branş</TableHead>
+                            <TableHead className="text-right">Toplam</TableHead>
+                            <TableHead className="text-right">İptal</TableHead>
+                            <TableHead className="text-right">Oran</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {cancellationAnalysis.branchBreakdown.slice(0, 10).map((b, i) => (
+                            <TableRow key={i}>
+                              <TableCell className="font-medium">{b.branch}</TableCell>
+                              <TableCell className="text-right">{b.total.toLocaleString("tr-TR")}</TableCell>
+                              <TableCell className="text-right">{b.cancelled.toLocaleString("tr-TR")}</TableCell>
+                              <TableCell className="text-right">
+                                <Badge variant={b.cancelRate > 20 ? "destructive" : b.cancelRate > 10 ? "secondary" : "outline"}>
+                                  %{b.cancelRate}
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </ScrollArea>
+                  </CardContent>
+                </Card>
+
+                {/* Company Breakdown */}
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium">Sigorta Şirketi Bazında İptal Oranları</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ScrollArea className="h-[250px]">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Şirket</TableHead>
+                            <TableHead className="text-right">Toplam</TableHead>
+                            <TableHead className="text-right">İptal</TableHead>
+                            <TableHead className="text-right">Oran</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {cancellationAnalysis.companyBreakdown.slice(0, 10).map((c, i) => (
+                            <TableRow key={i}>
+                              <TableCell className="font-medium">{c.company}</TableCell>
+                              <TableCell className="text-right">{c.total.toLocaleString("tr-TR")}</TableCell>
+                              <TableCell className="text-right">{c.cancelled.toLocaleString("tr-TR")}</TableCell>
+                              <TableCell className="text-right">
+                                <Badge variant={c.cancelRate > 20 ? "destructive" : c.cancelRate > 10 ? "secondary" : "outline"}>
+                                  %{c.cancelRate}
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </ScrollArea>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Monthly Trend */}
+              {cancellationAnalysis.monthlyTrend.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium">Aylık İptal Trendi</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-end gap-1 h-32">
+                      {cancellationAnalysis.monthlyTrend.map((m, i) => {
+                        const maxCount = Math.max(...cancellationAnalysis.monthlyTrend.map(t => t.count));
+                        const height = maxCount > 0 ? (m.count / maxCount) * 100 : 0;
+                        return (
+                          <Tooltip key={i}>
+                            <TooltipTrigger asChild>
+                              <div className="flex-1 flex flex-col items-center gap-1">
+                                <div 
+                                  className="w-full bg-destructive/60 rounded-t hover:bg-destructive transition-colors cursor-pointer"
+                                  style={{ height: `${Math.max(height, 4)}%` }}
+                                />
+                                <span className="text-xs text-muted-foreground rotate-45 origin-left whitespace-nowrap">
+                                  {m.month.slice(5)}
+                                </span>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>{m.month}: {m.count.toLocaleString("tr-TR")} iptal</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Risky Products */}
+              {cancellationAnalysis.riskyProducts.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4 text-destructive" />
+                      Yüksek Riskli Ürünler
+                    </CardTitle>
+                    <CardDescription>En yüksek iptal oranına sahip ürünler (min. 20 poliçe)</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap gap-2">
+                      {cancellationAnalysis.riskyProducts.map((p, i) => (
+                        <Badge key={i} variant="outline" className="py-2 px-3">
+                          <span className="font-medium">{p.product}</span>
+                          <span className="mx-2 text-muted-foreground">|</span>
+                          <span className="text-destructive">%{p.cancelRate}</span>
+                          <span className="mx-1 text-muted-foreground">({p.cancelledPolicies}/{p.totalPolicies})</span>
+                        </Badge>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </>
+          ) : null}
+
+          {/* AI-based Customer Churn Predictions */}
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div>
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4" />
+                    Müşteri Bazlı İptal Risk Tahmini
+                  </CardTitle>
+                  <CardDescription>AI ile müşteri profillerini analiz ederek iptal riski tahmin et</CardDescription>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => runChurnMutation.mutate()}
+                  disabled={isAnalyzing}
+                  data-testid="button-run-churn"
+                >
+                  {runChurnMutation.isPending ? (
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <AlertTriangle className="h-4 w-4 mr-2" />
+                  )}
+                  İptal Tahmini Çalıştır
+                </Button>
+              </div>
+            </CardHeader>
+          </Card>
+          
           <PredictionFilters
             filters={churnFilters}
             setFilters={setChurnFilters}
@@ -677,7 +969,7 @@ export default function AIInsights() {
             isAnalyzing={isAnalyzing}
             analysisIcon={<AlertTriangle className="h-4 w-4 mr-2" />}
             analysisLabel="İptal Tahmini Çalıştır"
-            analysisTestId="button-run-churn"
+            analysisTestId="button-run-churn-filter"
             analysisType="churn_prediction"
           />
           
@@ -688,11 +980,11 @@ export default function AIInsights() {
               ))}
             </div>
           ) : churnPredictions.length === 0 ? (
-            <Card className="p-12 text-center">
-              <AlertTriangle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium mb-2">Henüz iptal tahmini yok</h3>
-              <p className="text-muted-foreground mb-4">
-                Yukarıdaki "İptal Tahmini Çalıştır" butonuna tıklayarak müşteri bazında analiz yapabilirsiniz.
+            <Card className="p-8 text-center">
+              <AlertTriangle className="h-8 w-8 mx-auto text-muted-foreground mb-3" />
+              <h3 className="text-base font-medium mb-2">Henüz müşteri bazlı iptal tahmini yok</h3>
+              <p className="text-sm text-muted-foreground">
+                "İptal Tahmini Çalıştır" butonuna tıklayarak müşteri bazında AI analizi yapabilirsiniz.
               </p>
             </Card>
           ) : (

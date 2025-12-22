@@ -1080,6 +1080,244 @@ Sadece JSON array döndür.`;
     }
   });
 
+  // Cancellation Analysis - KPI Dashboard based on policeKayitTipi
+  // Following Python script logic: "satış" = first normal record, "zeyil" = subsequent normal, "iptal" = cancellation
+  app.get("/api/ai/cancellation-analysis", isAuthenticated, async (req, res) => {
+    try {
+      const customers = await storage.getAllCustomers();
+      
+      if (customers.length === 0) {
+        return res.json({
+          generalStats: { toplamPolice: 0, iptalAdedi: 0, iptalOrani: 0 },
+          cancelReasons: [],
+          monthlyTrend: [],
+          branchBreakdown: [],
+          companyBreakdown: [],
+          lifetimeDistribution: [],
+          riskyProducts: [],
+        });
+      }
+
+      // Normalize policy type: "iptal" = iptal, anything else = normal (satış/zeyil)
+      // Python logic: s.str.contains("iptal") -> "iptal", else -> "normal"
+      const normalizeTip = (tip: string | null | undefined): string => {
+        if (!tip) return "normal";
+        const lower = tip.toLowerCase().trim();
+        return lower.includes("iptal") ? "iptal" : "normal";
+      };
+
+      // Group by policy number - following Python script's logic:
+      // sale_date = earliest NORMAL record (first sale)
+      // cancel_date = earliest IPTAL record (first cancellation)
+      const policyMap = new Map<string, {
+        saleDate: Date | null;
+        cancelDate: Date | null;
+        branch: string | null;
+        company: string | null;
+        cancelReason: string | null;
+        city: string | null;
+        customer: string | null;
+        normalRecords: { date: Date; record: typeof customers[0] }[];
+        cancelRecords: { date: Date; record: typeof customers[0] }[];
+      }>();
+
+      for (const c of customers) {
+        const policeNo = c.policeNumarasi;
+        if (!policeNo) continue;
+
+        const tipNorm = normalizeTip(c.policeKayitTipi);
+        const tanzimDate = c.tanzimTarihi ? new Date(c.tanzimTarihi) : null;
+        if (!tanzimDate || isNaN(tanzimDate.getTime())) continue;
+
+        if (!policyMap.has(policeNo)) {
+          policyMap.set(policeNo, {
+            saleDate: null,
+            cancelDate: null,
+            branch: null,
+            company: null,
+            cancelReason: null,
+            city: null,
+            customer: null,
+            normalRecords: [],
+            cancelRecords: [],
+          });
+        }
+
+        const policy = policyMap.get(policeNo)!;
+
+        if (tipNorm === "normal") {
+          policy.normalRecords.push({ date: tanzimDate, record: c });
+        } else if (tipNorm === "iptal") {
+          policy.cancelRecords.push({ date: tanzimDate, record: c });
+        }
+      }
+
+      // Process each policy to get sale_date (earliest normal) and cancel_date (earliest iptal)
+      policyMap.forEach((policy) => {
+        // sale_date = min tanzim_tarihi where tip is normal (first sale)
+        if (policy.normalRecords.length > 0) {
+          policy.normalRecords.sort((a: { date: Date }, b: { date: Date }) => a.date.getTime() - b.date.getTime());
+          const firstSale = policy.normalRecords[0];
+          policy.saleDate = firstSale.date;
+          policy.branch = firstSale.record.anaBrans || null;
+          policy.company = firstSale.record.sigortaSirketiAdi || null;
+          policy.city = firstSale.record.sehir || null;
+          policy.customer = firstSale.record.musteriIsmi || null;
+        }
+        
+        // cancel_date = min tanzim_tarihi where tip is iptal (first cancellation)
+        if (policy.cancelRecords.length > 0) {
+          policy.cancelRecords.sort((a: { date: Date }, b: { date: Date }) => a.date.getTime() - b.date.getTime());
+          const firstCancel = policy.cancelRecords[0];
+          policy.cancelDate = firstCancel.date;
+          policy.cancelReason = firstCancel.record.iptalSebebi || null;
+        }
+      });
+
+      // Calculate KPIs
+      const policies = Array.from(policyMap.entries());
+      const totalPolicies = policies.length;
+      const cancelledPolicies = policies.filter(([, p]) => p.cancelDate !== null);
+      const cancelledCount = cancelledPolicies.length;
+      const cancelRate = totalPolicies > 0 ? (cancelledCount / totalPolicies) * 100 : 0;
+
+      // A) General Stats
+      const generalStats = {
+        toplamPolice: totalPolicies,
+        iptalAdedi: cancelledCount,
+        iptalOrani: Math.round(cancelRate * 100) / 100,
+      };
+
+      // B) Cancel Reason Distribution
+      const reasonCounts = new Map<string, number>();
+      for (const [, p] of cancelledPolicies) {
+        const reason = p.cancelReason || "Bilinmiyor";
+        reasonCounts.set(reason, (reasonCounts.get(reason) || 0) + 1);
+      }
+      const cancelReasons = Array.from(reasonCounts.entries())
+        .map(([reason, count]) => ({
+          reason,
+          count,
+          percentage: cancelledCount > 0 ? Math.round((count / cancelledCount) * 10000) / 100 : 0,
+        }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 15);
+
+      // C) Monthly Trend (last 12 months by cancel date)
+      const monthCounts = new Map<string, number>();
+      for (const [, p] of cancelledPolicies) {
+        if (p.cancelDate) {
+          const month = p.cancelDate.toISOString().slice(0, 7); // YYYY-MM
+          monthCounts.set(month, (monthCounts.get(month) || 0) + 1);
+        }
+      }
+      const monthlyTrend = Array.from(monthCounts.entries())
+        .map(([month, count]) => ({ month, count }))
+        .sort((a, b) => a.month.localeCompare(b.month))
+        .slice(-12);
+
+      // D) Branch Breakdown
+      const branchStats = new Map<string, { total: number; cancelled: number }>();
+      for (const [, p] of policies) {
+        const branch = p.branch || "Bilinmiyor";
+        if (!branchStats.has(branch)) {
+          branchStats.set(branch, { total: 0, cancelled: 0 });
+        }
+        const stat = branchStats.get(branch)!;
+        stat.total++;
+        if (p.cancelDate) stat.cancelled++;
+      }
+      const branchBreakdown = Array.from(branchStats.entries())
+        .map(([branch, stats]) => ({
+          branch,
+          total: stats.total,
+          cancelled: stats.cancelled,
+          cancelRate: stats.total > 0 ? Math.round((stats.cancelled / stats.total) * 10000) / 100 : 0,
+        }))
+        .filter(b => b.total >= 10)
+        .sort((a, b) => b.cancelRate - a.cancelRate);
+
+      // Company Breakdown
+      const companyStats = new Map<string, { total: number; cancelled: number }>();
+      for (const [, p] of policies) {
+        const company = p.company || "Bilinmiyor";
+        if (!companyStats.has(company)) {
+          companyStats.set(company, { total: 0, cancelled: 0 });
+        }
+        const stat = companyStats.get(company)!;
+        stat.total++;
+        if (p.cancelDate) stat.cancelled++;
+      }
+      const companyBreakdown = Array.from(companyStats.entries())
+        .map(([company, stats]) => ({
+          company,
+          total: stats.total,
+          cancelled: stats.cancelled,
+          cancelRate: stats.total > 0 ? Math.round((stats.cancelled / stats.total) * 10000) / 100 : 0,
+        }))
+        .filter(c => c.total >= 10)
+        .sort((a, b) => b.cancelRate - a.cancelRate);
+
+      // E) Policy Lifetime Distribution (days between sale and cancel)
+      const lifetimeBuckets = [
+        { label: "0 gün", min: 0, max: 0, count: 0 },
+        { label: "1-7 gün", min: 1, max: 7, count: 0 },
+        { label: "8-15 gün", min: 8, max: 15, count: 0 },
+        { label: "16-30 gün", min: 16, max: 30, count: 0 },
+        { label: "31-60 gün", min: 31, max: 60, count: 0 },
+        { label: "61-90 gün", min: 61, max: 90, count: 0 },
+        { label: "91-180 gün", min: 91, max: 180, count: 0 },
+        { label: "181-365 gün", min: 181, max: 365, count: 0 },
+        { label: "365+ gün", min: 366, max: 999999, count: 0 },
+      ];
+
+      for (const [, p] of cancelledPolicies) {
+        if (p.saleDate && p.cancelDate) {
+          const days = Math.floor((p.cancelDate.getTime() - p.saleDate.getTime()) / (1000 * 60 * 60 * 24));
+          if (days >= 0) {
+            for (const bucket of lifetimeBuckets) {
+              if (days >= bucket.min && days <= bucket.max) {
+                bucket.count++;
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      const totalLifetime = lifetimeBuckets.reduce((sum, b) => sum + b.count, 0);
+      const lifetimeDistribution = lifetimeBuckets.map(b => ({
+        label: b.label,
+        count: b.count,
+        percentage: totalLifetime > 0 ? Math.round((b.count / totalLifetime) * 10000) / 100 : 0,
+      }));
+
+      // F) Risky Products (high cancel rate products)
+      const riskyProducts = branchBreakdown
+        .filter(b => b.total >= 20)
+        .slice(0, 10)
+        .map(b => ({
+          product: b.branch,
+          totalPolicies: b.total,
+          cancelledPolicies: b.cancelled,
+          cancelRate: b.cancelRate,
+        }));
+
+      res.json({
+        generalStats,
+        cancelReasons,
+        monthlyTrend,
+        branchBreakdown,
+        companyBreakdown,
+        lifetimeDistribution,
+        riskyProducts,
+      });
+    } catch (error) {
+      console.error("Error calculating cancellation analysis:", error);
+      res.status(500).json({ message: "İptal analizi hesaplanamadı" });
+    }
+  });
+
   // Custom segment creation with AI
   app.post("/api/ai/analyze-custom-segment", isAuthenticated, async (req, res) => {
     try {
