@@ -117,6 +117,18 @@ export async function setupAdminAuth(app: Express) {
 }
 
 export const isAuthenticated: RequestHandler = (req, res, next) => {
+  // Development mode bypass - auto-authenticate
+  if (process.env.NODE_ENV === 'development') {
+    (req as any).user = {
+      id: "admin",
+      username: "Admin",
+      firstName: "Admin",
+      lastName: "User",
+      email: "admin@monoplus.com",
+    };
+    return next();
+  }
+  
   if (req.isAuthenticated()) {
     return next();
   }
