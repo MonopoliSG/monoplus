@@ -1040,53 +1040,22 @@ export class DatabaseStorage implements IStorage {
     totalPolicies: number;
     cancellationReasons: string[];
   }>> {
-    // Real cancellation reasons (exclude "İptal Olmayanlar" which means "Not Cancelled")
+    // Count cancelled policies using police_kayit_tipi = 'İptal' as the primary indicator
+    // This is more accurate than using iptal_sebebi alone
     const result = await db.execute(sql`
       SELECT 
         hesap_kodu,
-        COUNT(*) FILTER (WHERE iptal_sebebi IS NOT NULL 
-          AND iptal_sebebi != '' 
-          AND iptal_sebebi != 'İptal Olmayanlar'
-          AND iptal_sebebi IN (
-            'Tam İptal', 
-            'Değer Eksiltme Zeyli', 
-            'Kısmi İptal', 
-            'Satıştan İptal', 
-            'Diğer Nedenlerden İp',
-            'Tam İptal (Vergisiz)',
-            'Ödeme Sorunundan İpt'
-          )
-        ) as cancelled_count,
+        COUNT(*) FILTER (WHERE police_kayit_tipi = 'İptal') as cancelled_count,
         COUNT(*) as total_policies,
-        ARRAY_AGG(DISTINCT iptal_sebebi) FILTER (WHERE iptal_sebebi IS NOT NULL 
-          AND iptal_sebebi != '' 
-          AND iptal_sebebi != 'İptal Olmayanlar'
-          AND iptal_sebebi IN (
-            'Tam İptal', 
-            'Değer Eksiltme Zeyli', 
-            'Kısmi İptal', 
-            'Satıştan İptal', 
-            'Diğer Nedenlerden İp',
-            'Tam İptal (Vergisiz)',
-            'Ödeme Sorunundan İpt'
-          )
+        ARRAY_AGG(DISTINCT iptal_sebebi) FILTER (
+          WHERE police_kayit_tipi = 'İptal' 
+          AND iptal_sebebi IS NOT NULL 
+          AND iptal_sebebi != ''
         ) as cancellation_reasons
       FROM customers
       WHERE hesap_kodu IS NOT NULL AND hesap_kodu != ''
       GROUP BY hesap_kodu
-      HAVING COUNT(*) FILTER (WHERE iptal_sebebi IS NOT NULL 
-        AND iptal_sebebi != '' 
-        AND iptal_sebebi != 'İptal Olmayanlar'
-        AND iptal_sebebi IN (
-          'Tam İptal', 
-          'Değer Eksiltme Zeyli', 
-          'Kısmi İptal', 
-          'Satıştan İptal', 
-          'Diğer Nedenlerden İp',
-          'Tam İptal (Vergisiz)',
-          'Ödeme Sorunundan İpt'
-        )
-      ) > 0
+      HAVING COUNT(*) FILTER (WHERE police_kayit_tipi = 'İptal') > 0
     `);
     
     return (result.rows as any[]).map(row => ({
