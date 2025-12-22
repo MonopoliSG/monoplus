@@ -1942,10 +1942,18 @@ Sadece JSON objesi döndür.`;
         return res.status(503).json({ message: "AI özellikleri aktif değil. OPENAI_API_KEY gerekli." });
       }
 
-      const profiles = await storage.getAllCustomerProfilesForAiAnalysis();
-      if (profiles.length === 0) {
-        return res.json({ success: true, message: "Analiz edilecek profil bulunamadı", analyzed: 0 });
+      // Limit analysis to a manageable batch per request to avoid timeout
+      const { limit = 50 } = req.body || {};
+      const maxLimit = Math.min(limit, 100); // Cap at 100 profiles per request
+
+      const allProfiles = await storage.getAllCustomerProfilesForAiAnalysis();
+      if (allProfiles.length === 0) {
+        return res.json({ success: true, message: "Analiz edilecek profil bulunamadı", analyzed: 0, remaining: 0 });
       }
+
+      // Take only the first batch
+      const profiles = allProfiles.slice(0, maxLimit);
+      const remaining = allProfiles.length - profiles.length;
 
       let analyzed = 0;
       const batchSize = 10;
@@ -2017,11 +2025,16 @@ Sadece JSON array döndür, başka açıklama ekleme.`;
         }
       }
 
+      const message = remaining > 0 
+        ? `${analyzed} profil analiz edildi. ${remaining} profil kaldı - tekrar çalıştırarak devam edebilirsiniz.`
+        : `${analyzed} müşteri profili analiz edildi. Tüm profiller tamamlandı.`;
+      
       res.json({ 
         success: true, 
-        message: `${analyzed} müşteri profili analiz edildi`,
+        message,
         analyzed,
-        total: profiles.length
+        total: profiles.length,
+        remaining
       });
     } catch (error) {
       console.error("Error in AI profile analysis:", error);
