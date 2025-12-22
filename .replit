@@ -44,7 +44,7 @@ integrations = ["javascript_openai_ai_integrations:1.0.0", "javascript_database:
 [userenv]
 
 [userenv.shared]
-ADMIN_USERNAME = "admin"
+ADMIN_USERNAME = "Admin"
 ADMIN_PASSWORD = "MonoPlus2024!"
 
 [userenv.production]
