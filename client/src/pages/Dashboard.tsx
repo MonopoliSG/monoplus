@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Users, PieChart, Target, Calendar, AlertTriangle, ArrowRight } from "lucide-react";
+import { Users, Target, Calendar, AlertTriangle, ArrowRight } from "lucide-react";
 import { Link } from "wouter";
 import { format, differenceInDays, parseISO } from "date-fns";
 import { tr } from "date-fns/locale";
@@ -160,39 +160,6 @@ export default function Dashboard() {
                 </div>
               </ScrollArea>
             )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Hızlı Erişim</CardTitle>
-            <CardDescription>Sık kullanılan işlemler</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-3">
-            <Button variant="outline" className="justify-start" asChild>
-              <Link href="/import">
-                <Users className="h-4 w-4 mr-2" />
-                CSV İçe Aktar
-              </Link>
-            </Button>
-            <Button variant="outline" className="justify-start" asChild>
-              <Link href="/segments">
-                <PieChart className="h-4 w-4 mr-2" />
-                Segmentleri Görüntüle
-              </Link>
-            </Button>
-            <Button variant="outline" className="justify-start" asChild>
-              <Link href="/ai-insights">
-                <Target className="h-4 w-4 mr-2" />
-                AI Analizleri
-              </Link>
-            </Button>
-            <Button variant="outline" className="justify-start" asChild>
-              <Link href="/campaigns">
-                <Calendar className="h-4 w-4 mr-2" />
-                Kampanyalar
-              </Link>
-            </Button>
           </CardContent>
         </Card>
       </div>
