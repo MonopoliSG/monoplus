@@ -33,8 +33,14 @@ import {
   Building2,
   User,
   Sparkles,
-  Car
+  Car,
+  Info
 } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { CustomerProfile } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -209,24 +215,48 @@ export default function CustomerProfiles() {
           <Users className="h-6 w-6 text-muted-foreground" />
           <h1 className="text-2xl font-bold">Müsteri Profilleri</h1>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            onClick={() => syncMutation.mutate()}
-            disabled={syncMutation.isPending}
-            data-testid="button-sync-profiles"
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${syncMutation.isPending ? "animate-spin" : ""}`} />
-            Profilleri Senkronize Et
-          </Button>
-          <Button
-            onClick={() => aiAnalyzeMutation.mutate()}
-            disabled={aiAnalyzeMutation.isPending}
-            data-testid="button-ai-analyze"
-          >
-            <Sparkles className={`h-4 w-4 mr-2 ${aiAnalyzeMutation.isPending ? "animate-pulse" : ""}`} />
-            {aiAnalyzeMutation.isPending ? "Analiz Ediliyor..." : "AI ile Analiz Et"}
-          </Button>
+        <div className="flex flex-wrap gap-2 items-center">
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              onClick={() => syncMutation.mutate()}
+              disabled={syncMutation.isPending}
+              data-testid="button-sync-profiles"
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${syncMutation.isPending ? "animate-spin" : ""}`} />
+              Profilleri Senkronize Et
+            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8" data-testid="button-sync-info">
+                  <Info className="h-4 w-4 text-muted-foreground" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[300px]">
+                <p>Yeni bir müşteri datası yükledikten sonra tüm müşterileri ve poliçeleri analiz edip senkronize eder. Her yeni data yüklendiğinde bir sefer yapmanız yeterlidir.</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+          <div className="flex items-center gap-1">
+            <Button
+              onClick={() => aiAnalyzeMutation.mutate()}
+              disabled={aiAnalyzeMutation.isPending}
+              data-testid="button-ai-analyze"
+            >
+              <Sparkles className={`h-4 w-4 mr-2 ${aiAnalyzeMutation.isPending ? "animate-pulse" : ""}`} />
+              {aiAnalyzeMutation.isPending ? "Analiz Ediliyor..." : "AI ile Analiz Et"}
+            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8" data-testid="button-ai-info">
+                  <Info className="h-4 w-4 text-muted-foreground" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[300px]">
+                <p>Tüm müşterileri demografik bilgiler ve poliçe bilgileriyle analiz edip detaylı müşteri profilleri oluşturur. Dilediğiniz zaman tekrar analiz ettirebilirsiniz.</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
         </div>
       </div>
 
