@@ -7,10 +7,17 @@ import { pool } from "./db";
 import pg from "pg";
 
 // Admin credentials from environment - REQUIRED for security
-const ADMIN_USERNAME = process.env.ADMIN_USERNAME;
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+// Read on each request to handle dynamic env var loading
+function getAdminCredentials() {
+  return {
+    username: process.env.ADMIN_USERNAME,
+    password: process.env.ADMIN_PASSWORD
+  };
+}
 
-if (!ADMIN_USERNAME || !ADMIN_PASSWORD) {
+// Initial check for warning
+const initialCreds = getAdminCredentials();
+if (!initialCreds.username || !initialCreds.password) {
   console.warn("WARNING: ADMIN_USERNAME and ADMIN_PASSWORD environment variables are not set. Admin login will not work.");
 }
 
@@ -61,15 +68,18 @@ export async function setupAdminAuth(app: Express) {
   // Local strategy for admin login
   passport.use(
     new LocalStrategy(async (username, password, done) => {
+      // Get credentials fresh on each login attempt
+      const creds = getAdminCredentials();
+      
       // Check if credentials are configured
-      if (!ADMIN_USERNAME || !ADMIN_PASSWORD) {
+      if (!creds.username || !creds.password) {
         return done(null, false, { message: "Admin hesabi yapilandirilmamis" });
       }
       
-      if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+      if (username === creds.username && password === creds.password) {
         const user = {
           id: "admin",
-          username: ADMIN_USERNAME,
+          username: creds.username,
           firstName: "Admin",
           lastName: "User",
           email: "admin@monoplus.com",
