@@ -1432,22 +1432,7 @@ function PredictionFilters({
         </div>
       </CardHeader>
       <CardContent>
-        <div className="grid gap-4 md:grid-cols-5">
-          <div className="space-y-2">
-            <Label htmlFor="search" className="text-xs">Müşteri Ara</Label>
-            <div className="relative">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                id="search"
-                placeholder="Müşteri adı..."
-                value={filters.search}
-                onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-                className="pl-8"
-                data-testid="input-search"
-              />
-            </div>
-          </div>
-          
+        <div className="grid gap-4 md:grid-cols-4">
           <div className="space-y-2">
             <Label className="text-xs">Ürün</Label>
             <Select
