@@ -935,10 +935,13 @@ Sadece JSON array döndür.`;
 
       const prompt = getCustomerProfilePredictionPrompt(type, sampledProfiles);
 
+      // Increase tokens for cross-sell to ensure more comprehensive output
+      const maxTokens = type === "cross_sell" ? 32000 : 16000;
+      
       const response = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: [{ role: "user", content: prompt }],
-        max_completion_tokens: 16000,
+        max_completion_tokens: maxTokens,
         temperature: 0.3,
       });
 
@@ -2122,7 +2125,9 @@ Sadece JSON array döndür.`;
 
 // New function using customer profiles with hashtags for richer AI analysis
 function getCustomerProfilePredictionPrompt(type: string, profiles: any[]): string {
-  const profileData = profiles.slice(0, 100).map((p) => ({
+  // Take more profiles for cross-sell to ensure sufficient output
+  const maxProfiles = type === "cross_sell" ? 150 : 100;
+  const profileData = profiles.slice(0, maxProfiles).map((p) => ({
     profileId: p.id,
     name: p.musteriIsmi,
     customerType: p.musteriTipi,
@@ -2213,14 +2218,15 @@ Skoru nedenleriyle açıkla.
   }
 ]
 
-Kurallar:
+ÖNEMLİ KURALLAR:
+- HER PROFİL İÇİN EN AZ BİR ÖNERİ ÜRET! Toplam ${profileData.length} profil var, EN AZ ${Math.min(profileData.length, 100)} öneri döndür.
 - probability 0-100 arası olmalı, yukarıdaki skorlama kurallarına göre hesapla
 - opportunityType alanına fırsat tipini yaz (örn: "Kasko var Trafik yok")
 - priority: probability >= 70 ise High, 50-69 ise Medium, <50 ise Low
 - nextBestAction: High öncelik = Call, Medium = Email, Low = Visit
 - suggestedProduct: Kasko, Trafik, Sağlık, Konut, DASK, Ferdi Kaza, Seyahat, İşyeri, Sorumluluk, Hayat
-- EN AZ 50 profil için öneri yap, mümkünse tüm profiller için
 - Bireysel ve Kurumsal müşterilere farklı stratejiler uygula
+- Tüm profilleri tara ve uygun olanlar için fırsat öner
 - Sadece JSON array döndür, başka metin ekleme`;
   }
 
