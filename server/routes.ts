@@ -2116,6 +2116,100 @@ Sadece JSON array döndür, başka açıklama ekleme.`;
     }
   });
 
+  // Fix all policies for a customer profile with specific corrections per policy type
+  app.post("/api/data/fix-profile-policies/:profileId", isAuthenticated, async (req, res) => {
+    try {
+      const { corrections } = req.body; 
+      // corrections format: { "Trafik": { brut: 13807.57, net: 12000 }, "Kasko": { brut: 38519.05, net: 35000 } }
+      
+      if (!corrections || typeof corrections !== 'object') {
+        return res.status(400).json({ message: "Düzeltilecek değerler gerekli. Format: { 'Trafik': { brut: 13807.57 }, 'Kasko': { brut: 38519.05 } }" });
+      }
+      
+      // Get the customer profile
+      const profile = await storage.getCustomerProfile(req.params.profileId);
+      if (!profile || !profile.hesapKodu) {
+        return res.status(404).json({ message: "Müşteri profili bulunamadı" });
+      }
+      
+      // Get all policies for this customer
+      const policies = await storage.getCustomerPolicies(profile.hesapKodu);
+      
+      let fixedCount = 0;
+      const fixedPolicies: any[] = [];
+      
+      for (const policy of policies) {
+        const policyType = policy.anaBrans || policy.policeTuru;
+        
+        // Check if we have corrections for this policy type
+        for (const [correctionType, correctionValues] of Object.entries(corrections)) {
+          if (policyType && policyType.toLowerCase().includes(correctionType.toLowerCase())) {
+            await storage.updateCustomerFields(policy.id, correctionValues as Record<string, number | string>);
+            fixedCount++;
+            fixedPolicies.push({
+              id: policy.id,
+              policeNumarasi: policy.policeNumarasi,
+              type: policyType,
+              corrections: correctionValues
+            });
+            break;
+          }
+        }
+      }
+      
+      // Re-sync customer profiles to update totals
+      if (fixedCount > 0) {
+        await storage.syncCustomerProfiles();
+      }
+      
+      res.json({
+        success: true,
+        message: `${fixedCount} poliçe düzeltildi ve profil senkronize edildi`,
+        profileId: req.params.profileId,
+        hesapKodu: profile.hesapKodu,
+        fixedPolicies
+      });
+    } catch (error) {
+      console.error("Error fixing profile policies:", error);
+      res.status(500).json({ message: "Poliçeler güncellenemedi" });
+    }
+  });
+
+  // Get policies with raw values for debugging
+  app.get("/api/data/debug-profile/:profileId", isAuthenticated, async (req, res) => {
+    try {
+      const profile = await storage.getCustomerProfile(req.params.profileId);
+      if (!profile || !profile.hesapKodu) {
+        return res.status(404).json({ message: "Müşteri profili bulunamadı" });
+      }
+      
+      const policies = await storage.getCustomerPolicies(profile.hesapKodu);
+      
+      res.json({
+        profile: {
+          id: profile.id,
+          hesapKodu: profile.hesapKodu,
+          musteriIsmi: profile.musteriIsmi,
+          toplamBrutPrim: profile.toplamBrutPrim,
+          toplamNetPrim: profile.toplamNetPrim
+        },
+        policies: policies.map(p => ({
+          id: p.id,
+          policeNumarasi: p.policeNumarasi,
+          anaBrans: p.anaBrans,
+          policeTuru: p.policeTuru,
+          brut: p.brut,
+          net: p.net,
+          paraBirimi: p.paraBirimi,
+          policeKayitTipi: p.policeKayitTipi
+        }))
+      });
+    } catch (error) {
+      console.error("Error debugging profile:", error);
+      res.status(500).json({ message: "Profil bilgisi alınamadı" });
+    }
+  });
+
   return httpServer;
 }
 
