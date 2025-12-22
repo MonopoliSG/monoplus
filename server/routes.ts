@@ -304,7 +304,51 @@ function generateCrossSellRecommendations(profiles: any[]): CrossSellRecommendat
       }
     }
     
-    // Rule 6: Mid-segment customers - balanced recommendations
+    // Rule 6: Housing insurance cross-sell - DASK and Konut
+    // DASK is mandatory earthquake insurance, Konut is optional home insurance
+    if (hasKonut && !hasDask) {
+      recommendations.push({
+        customerId: profile.hesapKodu || profile.id,
+        profileId: profile.id,
+        customerName: profile.musteriIsmi,
+        currentProduct: 'Konut',
+        suggestedProduct: 'DASK',
+        probability: 95,
+        reason: 'Konut sigortası var ancak zorunlu DASK (deprem) sigortası yok - yasal zorunluluk, acil öneri',
+        city: profile.sehir,
+        hashtags: profile.aiAnaliz,
+      });
+    }
+    
+    if (hasDask && !hasKonut) {
+      let probability = 75;
+      let reason = 'DASK sigortası var ancak konut sigortası yok - kapsamlı ev koruması için konut sigortası önerilir';
+      
+      if (segment === 'premium') {
+        probability = 90;
+        reason = 'Premium müşteri, DASK var ancak konut sigortası yok - kapsamlı konut paketi önerilir';
+      } else if (segment === 'mid') {
+        probability = 80;
+        reason = 'DASK sigortası var ancak konut sigortası yok - yangın, hırsızlık, su hasarı gibi risklere karşı konut sigortası önerilir';
+      } else {
+        probability = 65;
+        reason = 'DASK sigortası var - uygun fiyatlı konut sigortası seçenekleri sunulabilir';
+      }
+      
+      recommendations.push({
+        customerId: profile.hesapKodu || profile.id,
+        profileId: profile.id,
+        customerName: profile.musteriIsmi,
+        currentProduct: 'DASK',
+        suggestedProduct: 'Konut Sigortası',
+        probability,
+        reason,
+        city: profile.sehir,
+        hashtags: profile.aiAnaliz,
+      });
+    }
+    
+    // Rule 6b: Mid-segment customers without any housing insurance
     if (segment === 'mid') {
       if (!hasDask && !hasKonut) {
         recommendations.push({
@@ -314,7 +358,7 @@ function generateCrossSellRecommendations(profiles: any[]): CrossSellRecommendat
           currentProduct: products.split(',')[0]?.trim() || 'Mevcut Poliçe',
           suggestedProduct: 'DASK + Konut Sigortası',
           probability: 55,
-          reason: 'Konut sigortası yok - DASK ve konut sigortası paketi önerilir',
+          reason: 'Konut sigortası yok - DASK (zorunlu deprem) ve konut sigortası paketi önerilir',
           city: profile.sehir,
           hashtags: profile.aiAnaliz,
         });
@@ -2428,11 +2472,17 @@ ${JSON.stringify(sample.slice(0, 5).map(p => ({
   hashtags: p.aiAnaliz
 })), null, 2)}
 
-Lütfen şu formatta 3-5 çapraz satış fırsatı belirle. Hashtag'leri dikkate al:
+Önemli Konut Sigortası Çapraz Satış Kuralları:
+- DASK (Zorunlu Deprem Sigortası): Türkiye'de konut sahipleri için yasal zorunluluk
+- Konut Sigortası: İsteğe bağlı, yangın/hırsızlık/su hasarı gibi riskleri kapsar
+- Konut sigortası olan müşteriye DASK öner (yasal zorunluluk - %95 olasılık)
+- DASK olan müşteriye konut sigortası öner (kapsamlı koruma - %75-90 olasılık)
+
+Lütfen şu formatta 3-5 çapraz satış fırsatı belirle. Hashtag'leri ve konut/DASK fırsatlarını dikkate al:
 [
   {
     "title": "Fırsat başlığı",
-    "insight": "Detaylı açıklama - hashtag'lere dayalı önerileri içersin",
+    "insight": "Detaylı açıklama - hashtag'lere ve konut sigortası fırsatlarına dayalı önerileri içersin",
     "confidence": 85,
     "category": "Çapraz Satış",
     "metadata": { "potentialCustomers": 100, "filters": { "hasBranch": "mevcut ürün", "notHasBranch": "önerilen ürün" } }
@@ -2487,11 +2537,17 @@ ${JSON.stringify(sample.slice(0, 5).map(p => ({
   hashtags: p.aiAnaliz
 })), null, 2)}
 
-Lütfen şu formatta 4-6 müşteri segmenti belirle. Hashtag'leri dikkate al (#premium, #ekonomik, #aile, #kurumsal vb.):
+Önemli Konut Sigortası Kuralları:
+- DASK (Zorunlu Deprem Sigortası): Türkiye'de konut sahipleri için yasal zorunluluk
+- Konut Sigortası: İsteğe bağlı, yangın/hırsızlık/su hasarı gibi riskleri kapsar
+- Konut sigortası olan müşteriye DASK öner (yasal zorunluluk)
+- DASK olan müşteriye konut sigortası öner (kapsamlı koruma)
+
+Lütfen şu formatta 4-6 müşteri segmenti belirle. Hashtag'leri ve konut/DASK çapraz satış fırsatlarını dikkate al:
 [
   {
     "title": "Segment adı",
-    "insight": "Segment özellikleri, davranış kalıpları ve pazarlama önerileri - hashtag'lere dayalı",
+    "insight": "Segment özellikleri, davranış kalıpları ve pazarlama önerileri - hashtag'lere ve konut sigortası fırsatlarına dayalı",
     "confidence": 85,
     "category": "Segmentasyon",
     "metadata": { "customerCount": 500, "avgPremium": 5000, "filters": { "customerType": "Bireysel", "hasBranch": "ürün" } }
