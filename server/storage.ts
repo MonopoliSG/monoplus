@@ -373,8 +373,7 @@ export class DatabaseStorage implements IStorage {
       conditions.push(like(aiCustomerPredictions.customerName, `%${filters.search}%`));
     }
     if (filters.product) {
-      // Use partial matching for normalized product names (e.g., "Kasko" matches "Oto Kaza (Kasko)")
-      conditions.push(ilike(aiCustomerPredictions.currentProduct, `%${filters.product}%`));
+      conditions.push(eq(aiCustomerPredictions.currentProduct, filters.product));
     }
     if (filters.city) {
       conditions.push(eq(aiCustomerPredictions.city, filters.city));

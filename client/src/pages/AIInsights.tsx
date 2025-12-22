@@ -1366,27 +1366,8 @@ function PredictionFilters({
   analysisTestId: string;
   analysisType: string;
 }) {
-  // Normalize product names to simple categories for filtering
-  const normalizeProductName = (product: string): string => {
-    const lower = product.toLowerCase();
-    if (lower.includes("kasko")) return "Kasko";
-    if (lower.includes("trafik")) return "Trafik";
-    if (lower.includes("dask")) return "DASK";
-    if (lower.includes("sağlık") || lower.includes("saglik")) return "Sağlık";
-    if (lower.includes("konut")) return "Konut";
-    if (lower.includes("işyeri") || lower.includes("isyeri")) return "İşyeri";
-    if (lower.includes("nakliyat")) return "Nakliyat";
-    if (lower.includes("mühendislik") || lower.includes("muhendislik")) return "Mühendislik";
-    if (lower.includes("hayat")) return "Hayat";
-    if (lower.includes("ferdi kaza")) return "Ferdi Kaza";
-    return product; // Return original if no match
-  };
-  
-  // Get unique normalized product names
-  const products = Array.from(new Set(
-    predictions.map((p) => p.currentProduct).filter(Boolean).map(p => normalizeProductName(p!))
-  )).sort();
-  const cities = Array.from(new Set(predictions.map((p) => p.city).filter(Boolean))).sort();
+  const products = Array.from(new Set(predictions.map((p) => p.currentProduct).filter(Boolean)));
+  const cities = Array.from(new Set(predictions.map((p) => p.city).filter(Boolean)));
 
   return (
     <Card>
